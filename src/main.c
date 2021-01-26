@@ -67,7 +67,6 @@ typedef struct {
     uint8_t     fps;
     uint8_t     titleLength;
     char        *title;
-    uint8_t     titleEnd;
     uint16_t    captionCount;
     caption_t   *captions;
     uint16_t    frameCount;
@@ -77,106 +76,6 @@ typedef struct {
 
 ti_var_t LLV_FILE;
 
-
-int loadFrame() {
-    uint8_t  frameHeader;
-    uint16_t lineCount;
-    uint16_t x;
-    uint8_t  y;
-    uint8_t  VERT_SCALE = 1;
-    uint8_t  remainingWidth;
-    uint8_t  frame[255];
-    uint8_t  line;
-    uint8_t  color = 0;
-    uint8_t  tempColor;
-    uint8_t  key = 0;
-    uint16_t i;
-    
-    ti_Read(&frameHeader, 1, 1, LLV_FILE);
-    ti_Read(&lineCount, 1, 2, LLV_FILE);
-        
-    // draw (320x240)
-    x = 0;
-    y = 0;
-    color = 0x00;
-    gfx_SetColor(0xFF);     // Setup color swapping
-    if(frameHeader & 128) {  // If 1st bit set, start with white
-        color = gfx_SetColor(color);
-    }
-    
-    // DEBUG: clear screen before draw.
-    gfx_FillScreen(74);
-            // DEBUG: debug var display
-            tempColor = gfx_SetColor(74);
-            gfx_FillRectangle(0, 200, LCD_WIDTH, 40);
-            gfx_SetTextXY(0, 200);
-            gfx_PrintUInt(lineCount, 16);
-            gfx_SetTextXY(0, 208);
-            gfx_PrintUInt(i, 16);
-            gfx_SetTextXY(0, 216);
-            gfx_PrintUInt(frameHeader, 8);
-            /*gfx_SetTextXY(0, 224);
-            gfx_PrintUInt(i, 8);
-            gfx_SetTextXY(0, 232);
-            gfx_PrintInt(LLV_SIZE, 8);*/
-            gfx_SetColor(tempColor);
-    
-    while(!(key = os_GetCSC()));
-    
-    if(key == sk_Clear || lineCount == 65535) {
-        return 0;
-    }
-    
-    for (i = 0; i < lineCount; i++) {
-        remainingWidth = LCD_WIDTH - x;
-        
-        ti_Read(&frame, 1, 1, LLV_FILE);
-        
-        //line = frame[i];
-        line = frame[0];
-        
-        if(remainingWidth < line) {
-            // line for remainingWidth
-            gfx_FillRectangle(x, y, remainingWidth, VERT_SCALE);
-            
-            // line for line - remainingWidth on next line
-            gfx_FillRectangle(0, y + VERT_SCALE, line - remainingWidth, VERT_SCALE);
-            
-            // loop x and +1 to y
-            x = line - remainingWidth;
-            y += VERT_SCALE;
-        } else {
-            // line for line
-            gfx_FillRectangle(x, y, line, VERT_SCALE);
-            // increase x offset by length of line
-            x += line;
-        }
-        
-        if(line != 255) {   // Swap color, unless line length was exactly 255 (0xFF). This is to allow contiguous sections of the same color longer than 255.
-            color = gfx_SetColor(color);    // To display a line of length 255, encode it as a 255 length line (0xFF) followed by a 0 length line (0x00).
-        }
-        
-            
-            // DEBUG: debug var display
-            tempColor = gfx_SetColor(74);
-            gfx_FillRectangle(0, 200, LCD_WIDTH, 40);
-            gfx_SetTextXY(0, 200);
-            gfx_PrintUInt(lineCount, 16);
-            gfx_SetTextXY(0, 208);
-            gfx_PrintUInt(i, 16);
-            /*gfx_SetTextXY(0, 216);
-            gfx_PrintUInt(line, 8);
-            gfx_SetTextXY(0, 224);
-            gfx_PrintUInt(i, 8);
-            gfx_SetTextXY(0, 232);
-            gfx_PrintInt(LLV_SIZE, 8);*/
-            gfx_SetColor(tempColor);
-            
-            
-    }
-    
-    return 0;
-}
 
 
 int main(void)
@@ -198,12 +97,23 @@ int main(void)
     char *var_name;
     uint8_t *search_pos;
     uint8_t numFound;
-    uint8_t i;
+    uint16_t i;
+    uint16_t j;
+    
+    
+    uint8_t  frameHeader;
+    uint16_t lineCount;
+    uint16_t x;
+    uint8_t  y;
+    uint8_t  VERT_SCALE = 1;
+    uint16_t remainingWidth;
+    uint8_t  frame[255];
+    uint8_t  line;
+    uint8_t  color = 0;
     
     
     
     gfx_Begin();            // Initalize graphics
-    //gfx_SetDrawBuffer();    // Enable buffering (because the screen is fully redrawn each frame)
     
     
     
@@ -227,14 +137,14 @@ select:
         strcpy(LLV_header.fileName, var_name);  // File name for printing
         strcpy(fileNames[numFound], var_name);      // File name saved for opening
         ti_Seek(3, SEEK_SET, LLV_FILE);         // Seek past "LLV" header
-        ti_Read(&LLV_header.fileName+9, 4, 1, LLV_FILE);    // Offsets 0-3
-        ti_Read(&LLV_header.title, 1, LLV_header.titleLength, LLV_FILE);    // Title String
-        LLV_header.titleEnd = 0x00;             // Not the best way to do this, but whatever.
+        ti_Read(&LLV_header.fileName+8, 4, 1, LLV_FILE);    // Offsets 0-3
+        LLV_header.title = (char*) ti_MallocString(LLV_header.titleLength);
+        ti_Read(LLV_header.title, 1, LLV_header.titleLength, LLV_FILE);    // Title String + null-terminator
         if((LLV_header.features) & 128) {                   // Captions exist
             ti_Read(&LLV_header.captionCount, 2, 1, LLV_FILE);      // Number of captions
             ti_Seek(LLV_header.captionCount, SEEK_CUR, LLV_FILE);   // Seek pask the captions list
         }
-        ti_Read(&LLV_header.frameCount, 2, 1, LLV_FILE);            // Number of frames
+        ti_Read(&LLV_header.frameCount, 1, 2, LLV_FILE);            // Number of frames
         
         // Print in list
         gfx_SetTextXY(10, numFound*8);
@@ -246,7 +156,16 @@ select:
         gfx_SetTextXY(10+64+10+64+10+64+10, numFound*8);
         gfx_PrintUInt(LLV_header.fps, 3);*/
         gfx_SetTextXY(10+64+10, numFound*8);
-        //gfx_PrintString(LLV_header.title);
+        gfx_PrintString(LLV_header.title);
+        gfx_SetTextXY(10, 8);
+        gfx_PrintUInt(LLV_header.version, 8);
+        gfx_SetTextXY(10, 16);
+        gfx_PrintUInt(LLV_header.features, 8);
+        gfx_SetTextXY(10, 24);
+        gfx_PrintUInt(LLV_header.fps, 8);
+        gfx_SetTextXY(10, 32);
+        gfx_PrintUInt(LLV_header.titleLength, 8);
+        while(!(key = os_GetCSC()));
         
         // Close file.
         ti_CloseAll();
@@ -254,7 +173,6 @@ select:
         numFound++;
         if(numFound > 10) break;
     }
-    //gfx_SwapDraw();
     
     for(i = 0; i < numFound; i++) {
     }
@@ -278,7 +196,6 @@ select:
         gfx_SetColor(tempColor);
         gfx_SetTextXY(0, i*8);
         gfx_PrintString(">");
-        //gfx_SwapDraw();
         
         while(!(key = os_GetCSC()));
     }
@@ -297,21 +214,132 @@ select:
     LLV_SIZE = ti_GetSize(LLV_FILE);
     
     // Seek to the beginning of the frame data
-    ti_Seek(3 + 7 + LLV_header.titleLength + 2, SEEK_SET, LLV_FILE);
+    //      LLV, Header, Title string,            frameCount
+    ti_Seek(3    + 4     + LLV_header.titleLength + 2       , SEEK_SET, LLV_FILE);
+    gfx_FillScreen(74);
     gfx_SetTextXY(0, 0);
     gfx_PrintUInt(LLV_header.frameCount, 8);
-    //gfx_SwapDraw();
     
     while(!(key = os_GetCSC()));
     
+    /*while(key != sk_Clear) {
+        
+            ti_Read(&frame, 1, 1, LLV_FILE);
+            
+            //line = frame[i];
+            line = frame[0];
+            
+        gfx_FillScreen(74);
+        gfx_SetTextXY(0, 0);
+        gfx_PrintUInt(line, 8);
+        
+        
+        
+        while(!(key = os_GetCSC()));
+    }*/
+    
+    
+    
+    
+    
+    gfx_SetDrawBuffer();    // Enable buffering (because the screen is fully redrawn each frame)
+    
     for(i = 0; i < LLV_header.frameCount; i++) {
         
-        loadFrame();
-        //gfx_SwapDraw();
+        ti_Read(&frameHeader, 1, 1, LLV_FILE);
+        ti_Read(&lineCount, 1, 2, LLV_FILE);
+        
+        // draw (320x240)
+        x = 0;
+        y = 0;
+        color = 0x00;
+        gfx_SetColor(0xFF);     // Setup color swapping
+        if(frameHeader & 128) {  // If 1st bit set, start with white
+            color = gfx_SetColor(color);
+        }
+    
+        //while(!(key = os_GetCSC()));
+    
+        // DEBUG: clear screen before draw.
+            gfx_FillScreen(74);
+            // DEBUG: debug var display
+            /*tempColor = gfx_SetColor(74);
+            gfx_FillRectangle(0, 200, 64, 40);
+            gfx_SetTextXY(0, 200);
+            gfx_PrintUInt(lineCount, 16);
+            gfx_SetTextXY(0, 208);
+            gfx_PrintUInt(j, 16);
+            gfx_SetTextXY(0, 216);
+            gfx_PrintUInt(frameHeader, 8);
+            /*gfx_SetTextXY(0, 224);
+            gfx_PrintUInt(i, 8);
+            gfx_SetTextXY(0, 232);
+            gfx_PrintInt(LLV_SIZE, 8);*/
+            //gfx_SetColor(tempColor);
+    
+        if(key == sk_Clear || lineCount > 1000) {
+            return 0;
+        }
+        
+        for (j = 0; j < lineCount; j++) {
+            remainingWidth = LCD_WIDTH - x;
+        
+            ti_Read(&frame, 1, 1, LLV_FILE);
+            
+            //line = frame[j];
+            line = frame[0];
+        
+            if(remainingWidth < line) {
+                // line for remainingWidth
+                gfx_FillRectangle(x, y, remainingWidth, VERT_SCALE);
+            
+                // line for line - remainingWidth on next line
+                gfx_FillRectangle(0, y + VERT_SCALE, line - remainingWidth, VERT_SCALE);
+            
+                // loop x and +1 to y
+                x = line - remainingWidth;
+                y += VERT_SCALE;
+            } else {
+                // line for line
+                gfx_FillRectangle(x, y, line, VERT_SCALE);
+                // increase x offset by length of line
+                x += line;
+            }
+        
+            if(line != 255) {   // Swap color, unless line length was exactly 255 (0xFF). This is to allow contiguous sections of the same color longer than 255.
+                color = gfx_SetColor(color);    // To display a line of length 255, encode it as a 255 length line (0xFF) followed by a 0 length line (0x00).
+            }
+        
+            
+            // DEBUG: debug var display
+            /*tempColor = gfx_SetColor(74);
+            gfx_FillRectangle(0, 200, 64, 40);
+            gfx_SetTextXY(0, 200);
+            gfx_PrintUInt(lineCount, 16);
+            gfx_SetTextXY(0, 208);
+            gfx_PrintUInt(j, 16);
+            gfx_SetTextXY(0, 216);
+            gfx_PrintUInt(line, 8);
+            gfx_SetTextXY(0, 224);
+            gfx_PrintUInt(x, 8);
+            gfx_SetTextXY(0, 232);
+            gfx_PrintInt(y, 8);
+            gfx_SetColor(tempColor);*/
+            
+            
+        }
+        
+        /*tempColor = gfx_SetColor(74);
+        gfx_FillRectangle(0, 200, 64, 40);
+        gfx_SetTextXY(0, 200);
+        gfx_PrintString("for loop complete");
+        gfx_SetColor(tempColor);*/
+        gfx_SwapDraw();
         
         //if(key == sk_Clear) break;      // DEBUG: quit on clear pressed
     }
     
     key = 0;
+    gfx_SetDrawScreen();
     goto select;
 }

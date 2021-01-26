@@ -54,7 +54,7 @@ while(True):
         color = pixels[0, 0]
         width, height = img.size
 
-        frameByteArray.append(0b00000000 + ((color == 1) << 7))  # Frame Header
+        frameByteArray.append(0b00000000 + ((color == 0) << 7))  # Frame Header
         lineCountIndex = len(frameByteArray)                    # Line Count Index (to insert into later)
         currentLineLength = -1  # Start at -1 so that we enter the first pixel at line length 0
         lineCount = 0
@@ -76,7 +76,13 @@ while(True):
                     currentLineLength = 0
                     color = cpixel
 
-        lineCountBytes = lineCount.to_bytes(2, 'big')
+        # Save the last line
+        # currentLineLength is incremented at beginning of loop, so when we exit we're one pixel behind
+        frameByteArray.append(currentLineLength + 1)
+        lineCount += 1
+
+        # This is how the TI-84+ CE stores 16 bit uints, so thats how we store it.
+        lineCountBytes = lineCount.to_bytes(2, 'little')
 
         frameByteArray.insert(lineCountIndex, lineCountBytes[1])
         frameByteArray.insert(lineCountIndex, lineCountBytes[0])
@@ -91,7 +97,7 @@ while(True):
     if(frameCount > 120):
         break
 
-frameCountBytes = frameCount.to_bytes(2, 'big')
+frameCountBytes = frameCount.to_bytes(2, 'little')
 frameByteArray.insert(frameCountIndex, frameCountBytes[1])
 frameByteArray.insert(frameCountIndex, frameCountBytes[0])
 
