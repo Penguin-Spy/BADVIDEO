@@ -2,15 +2,15 @@ Segment  Base   Top    High   Length
 -------- ------ ------ ------ -------
 icon     D1A882 D1A9D0           14Eh
 launcher D1A9D0 D1AA28            58h
-libs     D1AA28 D1AA79            51h
-startup  D1AA79 D1AAB8            3Fh
-cleanup  D1AAB8 D1AACC            14h
-exit     D1AACC D1AAD2             6h
-code     D1AAD2 D1AE82           3B0h
-data     D1AE82 D1AEA4            22h
-strsect  D1AEA4 D1AEAC             8h
-text     D1AEAC D1AF10            64h
-bss      D031F6 D031F6 D13FD6      0h
+libs     D1AA28 D1AA7D            55h
+startup  D1AA7D D1AABC            3Fh
+cleanup  D1AABC D1AAD0            14h
+exit     D1AAD0 D1AAD6             6h
+code     D1AAD6 D1B104           62Eh
+data     D1B104 D1B126            22h
+strsect  D1B126 D1B139            13h
+text     D1B139 D1B19D            64h
+bss      D031F6 D031F7 D13FD6      1h
 header   D1A87F D1A882             3h
 
 Label                       Value
@@ -150,28 +150,29 @@ _asm_DisableAPD           = 021134
 _asm_EnableAPD            = 021138
 _asm_DrawStatusBar        = 021A3C
 _asm_ArcChk               = 022040
-_os_DisableHomeTextBuffer = D1AAD2
-_os_EnableHomeTextBuffer  = D1AAE4
+_os_DisableHomeTextBuffer = D1AAD6
+_os_EnableHomeTextBuffer  = D1AAE8
 __case8                   = 000124
-__frameset                = D1AAF6
+__frameset                = D1AAFA
 __imul_b                  = 000158
 __imul_b                  = 000150
-__bldix                   = D1AB04
+__bldix                   = D1AB08
 __stoiu                   = 000264
 _strcpy                   = 0000CC
 __icmpzero                = 000138
-__setflag                 = 000218
 __findlibload             = D1A9D0
 __program_icon            = D1A887
 __program_description     = D1A989
-__ccleanup                = D1AAB8
+__ccleanup                = D1AABC
 _errno                    = D008DC
 _init                     = D1A882
-_exit                     = D1AACE
-__exit                    = D1AAA7
-__exitsp                  = D1AAA7
-__errsp                   = D1AAA7
-_main                     = D1AB10
+_exit                     = D1AAD2
+__exit                    = D1AAAB
+__exitsp                  = D1AAAB
+__errsp                   = D1AAAB
+_main                     = D1ADEC
+_loadFrame                = D1AB14
+_LLV_FILE                 = D031F6
 _ti_CloseAll              = D1AA3C
 _ti_Open                  = D1AA40
 _ti_Read                  = D1AA44
@@ -182,6 +183,7 @@ _gfx_Begin                = D1AA5D
 _gfx_End                  = D1AA61
 _gfx_SetColor             = D1AA65
 _gfx_FillScreen           = D1AA69
-_gfx_PrintString          = D1AA6D
-_gfx_SetTextXY            = D1AA71
-_gfx_FillRectangle        = D1AA75
+_gfx_PrintUInt            = D1AA6D
+_gfx_PrintString          = D1AA71
+_gfx_SetTextXY            = D1AA75
+_gfx_FillRectangle        = D1AA79

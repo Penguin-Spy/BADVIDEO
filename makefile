@@ -40,8 +40,8 @@ $(BINDIR)/%.8xv: $(BINDIR)/%.bin
 	$(Q)echo $^ $@
 	$(CONVBIN) -n $(basename $(notdir $@)) -j bin -k 8xv -i $^ -o $@
 
-$(BINDIR)/%.bin: $(VIDEOSRCDIR)/%.png
-	$(Q)echo $^ $@
+$(BINDIR)/%.bin: $(VIDEOSRCDIR)/%.mp4
+	$(Q)echo Converting $^ to $@
 	py convertFrame.py $^ $@
 
 test:

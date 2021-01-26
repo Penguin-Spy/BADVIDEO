@@ -3,7 +3,9 @@
 ; -localcse -const=ROM 
 	FILE	"SRC\MAIN.C"
 	.assume ADL=1
-	SEGMENT CODE
+	SEGMENT BSS
+_LLV_FILE:
+	DS	1
 ;    1	/*
 ;    2	 *--------------------------------------
 ;    3	 * Program Name:    Bad Apple for the TI-84+ CE
@@ -20,368 +22,636 @@
 ;   14	#include <tice.h>
 ;   15	#include <graphx.h>
 ;   16	#include <fileioc.h>
-;   17	
+;   17	#include <stdlib.h>
 ;   18	
 ;   19	
-;   20	
-;   21	
-;   22	
-;   23	
-;   24	
-;   25	int main(void)
-;   26	{
-_main:
-	LD	HL,-381
+;   20	/*
+;   21	|  Version |     0    |  1 Byte  | Version of this LLV file. For this specification, should be (`0b00001001`)
+;   22	| Features |     1    |  1 Byte  | Bitmask - Which features this file uses: 0 - Captions; 1 - Sound; 2-7 Reserved, should be zeros.
+;   23	|    FPS   |     2    |  1 Byte  | Frames per Second to play the video in.
+;   24	|TitleLngth|     3    |  1 Byte  | Length of the title string
+;   25	|   Title  |     4    |  strln+1 | String to display as the name of the video.
+;   26	| #o Cptns |  depends |  2 Bytes | Number of caption strings in the following list. Not included if captions were not specified in the Features bitmask
+;   27	| Captions |  depends | str+4*ln | List of null-terminated caption strings, followed by x & y postion to display string at. Not included if captions were not specified in the Features bitmask.
+;   28	| #o Frames|  depends |  2 Bytes | Number of frames in the following list.
+;   29	|  Frames  |  depends | #o Frames| List of frames. Frame format is described below.
+;   30	*/
+;   31	/*
+;   32	|  Header  |     0    |  1 Byte  | Bitmask - how to render frame:
+;   33	|          |          |          |  0 - Starting color; 0 = black, 1 = white
+;   34	|          |          |          |  1 - Compression direction; 0 - horizontal, 1 = vertical
+;   35	|          |          |          |  2 - Display length; 0 - display frame for normal time (depends on FPS), 1 - next bytes include length of time to display this frame.
+;   36	|          |          |          |  3 - Caption; 0 - no caption change, 1 - next bytes include caption string index to show.
+;   37	|          |          |          |  4 - Sound; 0 - no sound change, 1 - next bytes include tone/note to play.
+;   38	|          |          |          |  5-7: Reserved, should be 0.
+;   39	|  Display |     1    |  1 Byte  | If display length bit set, number of frames to display this frame for. Not present otherwise.
+;   40	|  Caption |  depends |  2 Bytes | If caption bit set, caption index to show. If value is 0xFFFF, clear any displayed captions. Not present otherwise.
+;   41	|   Sound  |  depends |  1 Byte? | If sound bit set, tone/note to play. Not present otherwise.
+;   42	| #o lines |  depends |  2 Bytes | Number of lines in this frame.
+;   43	|Frame Data|  depends | #o lines | List of distances between each color change. A value of 0xFF (255) does not swap the color, allowing contiguous sections of the same color longer than 255. Line lengths of exactly 255 are encoded as a 255 length line, followed by a 0 length line.  
+;   44	*/
+;   45	
+;   46	    
+;   47	typedef struct {
+;   48	    char    *text;
+;   49	    uint16_t x;
+;   50	    uint8_t  y;
+;   51	    uint8_t  color;
+;   52	} caption_t;
+;   53	
+;   54	typedef struct {
+;   55	    uint8_t  header;
+;   56	    uint8_t  displayTime;
+;   57	    uint16_t captionIndex;
+;   58	    uint8_t  sound;
+;   59	    uint16_t lineCount;
+;   60	    uint8_t  frameDataBuffer[255];
+;   61	} frame_header_t;
+;   62	
+;   63	typedef struct {
+;   64	    char        fileName[8];
+;   65	    uint8_t     version;
+;   66	    uint8_t     features;
+;   67	    uint8_t     fps;
+;   68	    uint8_t     titleLength;
+;   69	    char        *title;
+;   70	    uint8_t     titleEnd;
+;   71	    uint16_t    captionCount;
+;   72	    caption_t   *captions;
+;   73	    uint16_t    frameCount;
+;   74	    frame_header_t   *frameBuffer;
+;   75	} llv_header_t;
+;   76	
+;   77	
+;   78	ti_var_t LLV_FILE;
+	SEGMENT CODE
+;   79	
+;   80	
+;   81	int loadFrame() {
+_loadFrame:
+	LD	HL,-268
 	CALL	__frameset
-;   27	    
-;   28	    //uint8_t frame[] = {255,255,255,255,255,190,4,255,59,8,255,57,8,255,56,10,255,55,10,255,55,10,255,55,10,255,56,8,255,57,8,255,59,4,255,255,255,25,4,255,59,8,255,57,8,255,56,10,255,55,10,255,55,10,255,55,10,255,56,8,255,57,8,255,59,4,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,20,4,255,59,8,255,56,9,255,55,11,255,53,12,255,53,12,255,52,13,255,51,13,255,51,14,84,4,217,14,83,8,214,15,83,8,213,14,84,10,211,15,84,10,210,15,85,10,209,15,86,10,208,15,87,10,207,15,88,10,206,15,89,11,204,15,90,11,204,14,91,12,202,14,93,12,200,14,94,12,199,14,96,12,197,14,97,13,195,14,99,13,193,14,100,14,191,15,101,14,189,15,103,14,187,15,104,16,184,15,106,16,182,15,108,16,180,15,110,16,179,14,112,16,177,14,114,17,174,14,116,17,172,14,118,17,170,14,121,16,168,14,123,17,165,14,125,17,163,15,126,17,161,15,128,18,158,15,131,17,156,15,133,17,154,15,135,18,152,14,137,18,150,14,140,17,148,14,142,18,145,14,144,18,143,14,147,18,140,14,149,18,138,14,151,19,135,15,153,18,133,15,155,19,130,15,157,19,128,15,160,19,124,16,162,20,121,16,165,19,119,16,167,20,116,16,170,20,113,16,172,21,109,17,175,21,106,17,177,22,102,18,180,22,99,17,184,23,94,18,186,25,90,18,189,25,86,19,192,26,81,20,195,26,77,20,199,27,73,20,202,28,67,21,206,29,61,23,209,30,56,23,213,32,49,25,217,34,41,26,222,36,32,28,226,43,18,31,231,88,234,84,239,79,244,73,250,67,255,1,62,255,7,55,255,15,47,255,23,38,255,36,24,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255};
-;   29	    //uint8_t len = sizeof(frame);
-;   30	    
-;   31	    char names[][10] = {"_______0", "_______1", "_______2", "_______3", "_______4", "_______5", "_______6", "_______7", "_______8", "_______9"};
-	LEA	DE,IX+-126
-	LD	HL,_0temp0
-	LD	BC,100
-	LDIR	
-;   32	    
-;   33	    ti_var_t LLV_FILE;
-;   34	    uint16_t LLV_SIZE;
-;   35	    uint8_t frame[255];
-;   36	    uint8_t line = 0;
-;   37	    
-;   38	    uint16_t i;
-;   39	    int x = 0;
-;   40	    uint8_t y = 0;
-;   41	    uint8_t VERT_SCALE = 1;
-;   42	    uint8_t key = 0;
-;   43	    uint8_t color = 0;
-;   44	    uint8_t tempColor = 0;
-	LD	(IX+-11),0
-;   45	    char *var_name;
-;   46	    uint8_t *search_pos = NULL;
-	LD	BC,0
-	LD	(IX+-26),BC
-;   47	    uint8_t numFound = 0;
-	LD	(IX+-4),0
-;   48	    
-;   49	    
-;   50	    
-;   51	    // Close any files that may be open already
-;   52	    ti_CloseAll();
-	CALL	_ti_CloseAll
-;   53	    
-;   54	    
-;   55	    
-;   56	    
-;   57	    
-;   58	    
-;   59	    
-;   60	    
-;   61	    gfx_Begin();            // Initalize graphics
-	CALL	_gfx_Begin
-;   62	    //gfx_SetDrawBuffer();    // Enable buffering (because the screen is fully redrawn each frame)
-;   63	    
-;   64	    gfx_SetColor(0xFF);
-	LD	BC,255
-	PUSH	BC
-	CALL	_gfx_SetColor
-	POP	BC
-;   65	    gfx_FillScreen(74);
-	LD	BC,74
-	PUSH	BC
-	CALL	_gfx_FillScreen
-	POP	BC
-;   66	    
-;   67	    // Pick file
-;   68	    while((var_name = ti_DetectVar(&search_pos, "LLV", TI_APPVAR_TYPE)) != NULL) {
-	JR	L_3
-L_4:
-;   69	        strcpy(names[numFound], var_name);
-	LD	BC,(IX+-21)
-	PUSH	BC
-	LD	A,(IX+-4)
-	UEXT	HL
-	LD	L,A
-	LD	A,10
-	CALL	__imul_b
-	LD	BC,HL
-	LEA	HL,IX+-126
-	ADD	HL,BC
-	PUSH	HL
-	CALL	_strcpy
-	POP	BC
-	POP	BC
-;   70	        numFound++;
-	INC	(IX+-4)
-;   71	        if(numFound > 10) break;
-	LD	A,10
-	CP	A,(IX+-4)
-	JR	C,L_5
-;   72	    }
-L_3:
-	LD	BC,21
-	PUSH	BC
-	LD	BC,L__1
-	PUSH	BC
-	PEA	IX+-26
-	CALL	_ti_DetectVar
-	POP	BC
-	POP	BC
-	POP	BC
-	LD	(IX+-21),HL
-	CALL	__icmpzero
-	JR	NZ,L_4
-;   73	    
-;   74	    
-;   75	select:
-L_5:
-;   76	    gfx_SetColor(0xFF);     // Setup color swapping
-	LD	BC,255
-	PUSH	BC
-	CALL	_gfx_SetColor
-	POP	BC
-;   77	        
-;   78	    gfx_FillScreen(74);
-	LD	BC,74
-	PUSH	BC
-	CALL	_gfx_FillScreen
-	POP	BC
-;   79	    for(i = 0; i < numFound; i++) {
-	LD	(IX+-2),0
-	LD	(IX+-1),0
-	JR	L_10
-L_8:
-;   80	        gfx_SetTextXY(10, i*8);
-	LD	BC,(IX+-2)
-	CALL	__stoiu
-	ADD	HL,HL
-	ADD	HL,HL
-	ADD	HL,HL
-	PUSH	HL
-	LD	BC,10
-	PUSH	BC
-	CALL	_gfx_SetTextXY
-	POP	BC
-	POP	BC
-;   81	        gfx_PrintString(names[i]);
-	LD	BC,(IX+-2)
-	CALL	__stoiu
-	LD	A,10
-	CALL	__imul_b
-	LD	BC,HL
-	LEA	HL,IX+-126
-	ADD	HL,BC
-	PUSH	HL
-	CALL	_gfx_PrintString
-	POP	BC
-	LD	HL,(IX+-2)
-	INC	HL
-	LD	(IX+-2),L
-	LD	(IX+-1),H
-;   82	    }
-L_10:
-	LD	C,(IX+-4)
+;   82	    uint8_t  frameHeader;
+;   83	    uint16_t lineCount;
+;   84	    uint16_t x;
+;   85	    uint8_t  y;
+;   86	    uint8_t  VERT_SCALE = 1;
+;   87	    uint8_t  remainingWidth;
+;   88	    uint8_t  frame[255];
+;   89	    uint8_t  line;
+;   90	    uint8_t  color = 0;
+;   91	    uint8_t  tempColor;
+;   92	    uint8_t  key = 0;
+	LD	(IX+-10),0
+;   93	    uint16_t i;
+;   94	    
+;   95	    ti_Read(&frameHeader, 1, 1, LLV_FILE);
+	LD	A,(_LLV_FILE)
+	LD	C,A
 	LD	B,0
-	LD	HL,(IX+-2)
-	OR	A,A
-	SBC.SIS	HL,BC
-	JR	C,L_8
-;   83	    
-;   84	    key = 0;
+	PUSH	BC
+	LD	BC,1
+	PUSH	BC
+	PUSH	BC
+	PEA	IX+-13
+	CALL	_ti_Read
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;   96	    ti_Read(&lineCount, 1, 2, LLV_FILE);
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,2
+	PUSH	BC
+	LD	BC,1
+	PUSH	BC
+	PEA	IX+-12
+	CALL	_ti_Read
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;   97	        
+;   98	    // draw (320x240)
+;   99	    x = 0;
+	LD	(IX+-4),0
 	LD	(IX+-3),0
-;   85	    i = 0;
+;  100	    y = 0;
 	LD	(IX+-2),0
-	LD	(IX+-1),0
-;   86	    while(key != sk_Enter && key != sk_Clear) {
-	JR	L_24
-L_25:
-;   87	        switch(key) {
-	LD	A,(IX+-3)
-	UEXT	HL
-	LD	L,A
-	CALL	__case8
-L__4:
-	DW	2
-	DB	1
-	DW24	L_17	
-
-	DB	4
-	DW24	L_13	
-
-	DW24	L_21	
-
-;   88	            case sk_Up:
-L_13:
-;   89	                if(i > 0) i--;
-	LD	BC,(IX+-2)
-	OR	A,A
-	SBC	HL,HL
-	OR	A,A
-	SBC.SIS	HL,BC
-	JR	NC,L_21
-	LD	IY,(IX+-2)
-	LEA	HL,IY+-1
-	LD	(IX+-2),L
-	LD	(IX+-1),H
-;   90	                break;
-	JR	L_21
-;   91	            case sk_Down:
-L_17:
-;   92	                if(i < numFound-1) i++;
-	LD	A,(IX+-4)
-	UEXT	HL
-	LD	L,A
-	LD	DE,HL
-	DEC	DE
-	LD	BC,(IX+-2)
-	CALL	__stoiu
-	OR	A,A
-	SBC	HL,DE
-	CALL	__setflag
-	JP	P,L_21
-	LD	HL,(IX+-2)
-	INC	HL
-	LD	(IX+-2),L
-	LD	(IX+-1),H
-;   93	                break;
-;   94	            // mode for more info?
-;   95	        }
-L_21:
-;   96	        
-;   97	        // Draw selection carrot
-;   98	        tempColor = gfx_SetColor(74);
+;  101	    color = 0x00;
+	LD	(IX+-8),0
+;  102	    gfx_SetColor(0xFF);     // Setup color swapping
+	LD	BC,255
+	PUSH	BC
+	CALL	_gfx_SetColor
+	POP	BC
+;  103	    if(frameHeader & 128) {  // If 1st bit set, start with white
+	LD	A,(IX+-13)
+	AND	A,128
+	JR	Z,L_1
+;  104	        color = gfx_SetColor(color);
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetColor
+	POP	BC
+	LD	(IX+-8),A
+;  105	    }
+L_1:
+;  106	    
+;  107	    // DEBUG: clear screen before draw.
+;  108	    gfx_FillScreen(74);
+	LD	BC,74
+	PUSH	BC
+	CALL	_gfx_FillScreen
+	POP	BC
+;  109	            // DEBUG: debug var display
+;  110	            tempColor = gfx_SetColor(74);
 	LD	BC,74
 	PUSH	BC
 	CALL	_gfx_SetColor
 	POP	BC
-	LD	(IX+-11),A
-;   99	        gfx_FillRectangle(0, 0, 10, 8*numFound);
-	LD	A,(IX+-4)
-	UEXT	HL
-	LD	L,A
-	ADD	HL,HL
-	ADD	HL,HL
-	ADD	HL,HL
-	PUSH	HL
-	LD	BC,10
+	LD	(IX+-9),A
+;  111	            gfx_FillRectangle(0, 200, LCD_WIDTH, 40);
+	LD	BC,40
+	PUSH	BC
+	LD	BC,320
+	PUSH	BC
+	LD	BC,200
 	PUSH	BC
 	LD	BC,0
-	PUSH	BC
 	PUSH	BC
 	CALL	_gfx_FillRectangle
 	POP	BC
 	POP	BC
 	POP	BC
 	POP	BC
-;  100	        gfx_SetColor(tempColor);
-	LD	C,(IX+-11)
-	LD	B,0
+;  112	            gfx_SetTextXY(0, 200);
+	LD	BC,200
 	PUSH	BC
-	CALL	_gfx_SetColor
-	POP	BC
-;  101	        gfx_SetTextXY(0, i*8);
-	LD	BC,(IX+-2)
-	CALL	__stoiu
-	ADD	HL,HL
-	ADD	HL,HL
-	ADD	HL,HL
-	PUSH	HL
 	LD	BC,0
 	PUSH	BC
 	CALL	_gfx_SetTextXY
 	POP	BC
 	POP	BC
-;  102	        gfx_PrintString(">");
-	LD	BC,L__7
+;  113	            gfx_PrintUInt(lineCount, 16);
+	LD	BC,16
 	PUSH	BC
-	CALL	_gfx_PrintString
-	POP	BC
-;  103	        
-;  104	        while(!(key = os_GetCSC()));
-L_23:
-	CALL	_os_GetCSC
-	LD	(IX+-3),A
-	OR	A,A
-	JR	Z,L_23
-;  105	    }
-L_24:
-	LD	A,(IX+-3)
-	CP	A,9
-	JR	Z,L_27
-	LD	A,(IX+-3)
-	CP	A,15
-	JR	NZ,L_25
-L_27:
-;  106	    
-;  107	    if(key == sk_Clear) {
-	LD	A,(IX+-3)
-	CP	A,15
-	JR	NZ,L_28
-;  108	        gfx_End();              // End graphics drawing
-	CALL	_gfx_End
-	OR	A,A
-;  109	        return 0;
-	SBC	HL,HL
-	JR	L_45
-;  110	    }
-L_28:
-;  111	    
-;  112	
-;  113	    // Open the selected file.
-;  114	    LLV_FILE = ti_Open(names[i], "r");
-	LD	BC,L__12
-	PUSH	BC
-	LD	BC,(IX+-2)
+	LD	BC,(IX+-12)
 	CALL	__stoiu
-	LD	A,10
-	CALL	__imul_b
-	LD	BC,HL
-	LEA	HL,IX+-126
-	ADD	HL,BC
 	PUSH	HL
-	CALL	_ti_Open
+	CALL	_gfx_PrintUInt
 	POP	BC
 	POP	BC
-	LD	(IX+-10),A
-;  115	    
-;  116	    //ti_Read(&frame, 1, sizeof(frame), LLV_FILE);
-;  117	    
-;  118	    LLV_SIZE = ti_GetSize(LLV_FILE);
-	LD	C,(IX+-10)
+;  114	            gfx_SetTextXY(0, 208);
+	LD	BC,208
+	PUSH	BC
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  115	            gfx_PrintUInt(i, 16);
+	LD	BC,16
+	PUSH	BC
+	LD	BC,(IX+-6)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_gfx_PrintUInt
+	POP	BC
+	POP	BC
+;  116	            gfx_SetTextXY(0, 216);
+	LD	BC,216
+	PUSH	BC
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  117	            gfx_PrintUInt(frameHeader, 8);
+	LD	BC,8
+	PUSH	BC
+	LD	A,(IX+-13)
+	UEXT	HL
+	LD	L,A
+	PUSH	HL
+	CALL	_gfx_PrintUInt
+	POP	BC
+	POP	BC
+;  118	            /*gfx_SetTextXY(0, 224);
+;  119	            gfx_PrintUInt(i, 8);
+;  120	            gfx_SetTextXY(0, 232);
+;  121	            gfx_PrintInt(LLV_SIZE, 8);*/
+;  122	            gfx_SetColor(tempColor);
+	LD	C,(IX+-9)
 	LD	B,0
 	PUSH	BC
-	CALL	_ti_GetSize
+	CALL	_gfx_SetColor
 	POP	BC
-	LD	(IX+-23),L
-	LD	(IX+-22),H
-;  119	    
-;  120	    
-;  121	    while(key != sk_Clear) {
-	JR	L_42
-L_43:
-;  122	        
-;  123	        // draw (320x240)
-;  124	        x = 0;
-	LD	BC,0
-	LD	(IX+-9),BC
-;  125	        y = 0;
+;  123	    
+;  124	    while(!(key = os_GetCSC()));
+L_3:
+	CALL	_os_GetCSC
+	LD	(IX+-10),A
+	OR	A,A
+	JR	Z,L_3
+;  125	    
+;  126	    if(key == sk_Clear || lineCount == 65535) {
+	LD	A,(IX+-10)
+	CP	A,15
+	JR	Z,L_5
+	LD.LIS	BC,65535
+	LD	HL,(IX+-12)
+	OR	A,A
+	SBC.SIS	HL,BC
+	JR	NZ,L_16
+L_5:
+	OR	A,A
+;  127	        return 0;
+	SBC	HL,HL
+	JR	L_18
+;  128	    }
+L_16:
+;  129	    
+;  130	    for (i = 0; i < lineCount; i++) {
 	LD	(IX+-6),0
-;  126	        color = 0;
-	LD	(IX+-12),0
-;  127	        gfx_SetColor(0xFF);     // Setup color swapping
+	LD	(IX+-5),0
+	JR	L_15
+L_13:
+;  131	        remainingWidth = LCD_WIDTH - x;
+	LD	B,(IX+-4)
+	LD	A,64
+	SUB	A,B
+	LD	(IX+-7),A
+;  132	        
+;  133	        ti_Read(&frame, 1, 1, LLV_FILE);
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,1
+	PUSH	BC
+	PUSH	BC
+	LD	HL,IX
+	LD	BC,-268
+	ADD	HL,BC
+	LD	BC,HL
+	PUSH	BC
+	CALL	_ti_Read
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  134	        
+;  135	        //line = frame[i];
+;  136	        line = frame[0];
+	LD	BC,-268
+	CALL	__bldix
+	LD	(IX+-1),A
+;  137	        
+;  138	        if(remainingWidth < line) {
+	LD	A,(IX+-7)
+	CP	A,(IX+-1)
+	JR	NC,L_9
+;  139	            // line for remainingWidth
+;  140	            gfx_FillRectangle(x, y, remainingWidth, VERT_SCALE);
+	LD	BC,1
+	PUSH	BC
+	LD	A,(IX+-7)
+	UEXT	HL
+	LD	L,A
+	PUSH	HL
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	PUSH	HL
+	LD	BC,(IX+-4)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_gfx_FillRectangle
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  141	            
+;  142	            // line for line - remainingWidth on next line
+;  143	            gfx_FillRectangle(0, y + VERT_SCALE, line - remainingWidth, VERT_SCALE);
+	LD	BC,1
+	PUSH	BC
+	LD	A,(IX+-1)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	A,(IX+-7)
+	UEXT	HL
+	LD	L,A
+	LD	DE,HL
+	LD	HL,BC
+	OR	A,A
+	SBC	HL,DE
+	PUSH	HL
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	INC	HL
+	PUSH	HL
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_FillRectangle
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  144	            
+;  145	            // loop x and +1 to y
+;  146	            x = line - remainingWidth;
+	LD	C,(IX+-1)
+	LD	B,0
+	LD	HL,BC
+	LD	C,(IX+-7)
+	OR	A,A
+	SBC.SIS	HL,BC
+	LD	(IX+-4),L
+	LD	(IX+-3),H
+;  147	            y += VERT_SCALE;
+	INC	(IX+-2)
+;  148	        } else {
+	JR	L_11
+L_9:
+;  149	            // line for line
+;  150	            gfx_FillRectangle(x, y, line, VERT_SCALE);
+	LD	BC,1
+	PUSH	BC
+	LD	A,(IX+-1)
+	UEXT	HL
+	LD	L,A
+	PUSH	HL
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	PUSH	HL
+	LD	BC,(IX+-4)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_gfx_FillRectangle
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  151	            // increase x offset by length of line
+;  152	            x += line;
+	LD	C,(IX+-1)
+	LD	B,0
+	LD	HL,(IX+-4)
+	ADD.SIS	HL,BC
+	LD	(IX+-4),L
+	LD	(IX+-3),H
+;  153	        }
+L_11:
+;  154	        
+;  155	        if(line != 255) {   // Swap color, unless line length was exactly 255 (0xFF). This is to allow contiguous sections of the same color longer than 255.
+	LD	A,(IX+-1)
+	CP	A,255
+	JR	Z,L_12
+;  156	            color = gfx_SetColor(color);    // To display a line of length 255, encode it as a 255 length line (0xFF) followed by a 0 length line (0x00).
+	LD	C,(IX+-8)
+	PUSH	BC
+	CALL	_gfx_SetColor
+	POP	BC
+	LD	(IX+-8),A
+;  157	        }
+L_12:
+;  158	        
+;  159	            
+;  160	            // DEBUG: debug var display
+;  161	            tempColor = gfx_SetColor(74);
+	LD	BC,74
+	PUSH	BC
+	CALL	_gfx_SetColor
+	POP	BC
+	LD	(IX+-9),A
+;  162	            gfx_FillRectangle(0, 200, LCD_WIDTH, 40);
+	LD	BC,40
+	PUSH	BC
+	LD	BC,320
+	PUSH	BC
+	LD	BC,200
+	PUSH	BC
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_FillRectangle
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  163	            gfx_SetTextXY(0, 200);
+	LD	BC,200
+	PUSH	BC
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  164	            gfx_PrintUInt(lineCount, 16);
+	LD	BC,16
+	PUSH	BC
+	LD	BC,(IX+-12)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_gfx_PrintUInt
+	POP	BC
+	POP	BC
+;  165	            gfx_SetTextXY(0, 208);
+	LD	BC,208
+	PUSH	BC
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  166	            gfx_PrintUInt(i, 16);
+	LD	BC,16
+	PUSH	BC
+	LD	BC,(IX+-6)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_gfx_PrintUInt
+	POP	BC
+	POP	BC
+;  167	            /*gfx_SetTextXY(0, 216);
+;  168	            gfx_PrintUInt(line, 8);
+;  169	            gfx_SetTextXY(0, 224);
+;  170	            gfx_PrintUInt(i, 8);
+;  171	            gfx_SetTextXY(0, 232);
+;  172	            gfx_PrintInt(LLV_SIZE, 8);*/
+;  173	            gfx_SetColor(tempColor);
+	LD	C,(IX+-9)
+	LD	B,0
+	PUSH	BC
+	CALL	_gfx_SetColor
+	POP	BC
+	LD	HL,(IX+-6)
+	INC	HL
+	LD	(IX+-6),L
+	LD	(IX+-5),H
+;  174	            
+;  175	            
+;  176	    }
+L_15:
+	LD	BC,(IX+-12)
+	LD	HL,(IX+-6)
+	OR	A,A
+	SBC.SIS	HL,BC
+	JR	C,L_13
+	OR	A,A
+;  177	    
+;  178	    return 0;
+	SBC	HL,HL
+;  179	}
+L_18:
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _loadFrame ***************************
+;Name                         Addr/Register   Size   Type
+;_os_GetCSC                          IMPORT  -----   function
+;_gfx_PrintUInt                      IMPORT  -----   function
+;_gfx_SetTextXY                      IMPORT  -----   function
+;_gfx_FillRectangle                  IMPORT  -----   function
+;_gfx_FillScreen                     IMPORT  -----   function
+;_gfx_SetColor                       IMPORT  -----   function
+;_LLV_FILE                           STATIC      1   variable
+;_ti_Read                            IMPORT  -----   function
+;frame                               IX-268    255   variable
+;frameHeader                          IX-13      1   variable
+;lineCount                            IX-12      2   variable
+;key                                  IX-10      1   variable
+;tempColor                             IX-9      1   variable
+;color                                 IX-8      1   variable
+;remainingWidth                        IX-7      1   variable
+;i                                     IX-6      2   variable
+;x                                     IX-4      2   variable
+;y                                     IX-2      1   variable
+;line                                  IX-1      1   variable
+
+
+; Stack Frame Size: 274 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+;  180	
+;  181	
+;  182	int main(void)
+;  183	{
+_main:
+	LD	HL,-138
+	CALL	__frameset
+;  184	    llv_header_t LLV_header;
+;  185	    frame_header_t frame_header;
+;  186	    
+;  187	    
+;  188	    
+;  189	    //uint8_t frame[] = {255,255,255,255,255,190,4,255,59,8,255,57,8,255,56,10,255,55,10,255,55,10,255,55,10,255,56,8,255,57,8,255,59,4,255,255,255,25,4,255,59,8,255,57,8,255,56,10,255,55,10,255,55,10,255,55,10,255,56,8,255,57,8,255,59,4,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,20,4,255,59,8,255,56,9,255,55,11,255,53,12,255,53,12,255,52,13,255,51,13,255,51,14,84,4,217,14,83,8,214,15,83,8,213,14,84,10,211,15,84,10,210,15,85,10,209,15,86,10,208,15,87,10,207,15,88,10,206,15,89,11,204,15,90,11,204,14,91,12,202,14,93,12,200,14,94,12,199,14,96,12,197,14,97,13,195,14,99,13,193,14,100,14,191,15,101,14,189,15,103,14,187,15,104,16,184,15,106,16,182,15,108,16,180,15,110,16,179,14,112,16,177,14,114,17,174,14,116,17,172,14,118,17,170,14,121,16,168,14,123,17,165,14,125,17,163,15,126,17,161,15,128,18,158,15,131,17,156,15,133,17,154,15,135,18,152,14,137,18,150,14,140,17,148,14,142,18,145,14,144,18,143,14,147,18,140,14,149,18,138,14,151,19,135,15,153,18,133,15,155,19,130,15,157,19,128,15,160,19,124,16,162,20,121,16,165,19,119,16,167,20,116,16,170,20,113,16,172,21,109,17,175,21,106,17,177,22,102,18,180,22,99,17,184,23,94,18,186,25,90,18,189,25,86,19,192,26,81,20,195,26,77,20,199,27,73,20,202,28,67,21,206,29,61,23,209,30,56,23,213,32,49,25,217,34,41,26,222,36,32,28,226,43,18,31,231,88,234,84,239,79,244,73,250,67,255,1,62,255,7,55,255,15,47,255,23,38,255,36,24,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255};
+;  190	    //uint8_t len = sizeof(frame);
+;  191	    
+;  192	    char fileNames[][10] = {"_______0", "_______1", "_______2", "_______3", "_______4", "_______5", "_______6", "_______7", "_______8", "_______9"};
+	LD	HL,IX
+	LD	BC,-138
+	ADD	HL,BC
+	LD	DE,HL
+	LD	HL,_0temp19
+	LD	BC,100
+	LDIR	
+;  193	    
+;  194	    uint16_t LLV_SIZE;
+;  195	    
+;  196	    uint8_t key = 0;
+;  197	    uint8_t tempColor = 0;
+	LD	(IX+-4),0
+;  198	    char *var_name;
+;  199	    uint8_t *search_pos;
+;  200	    uint8_t numFound;
+;  201	    uint8_t i;
+;  202	    
+;  203	    
+;  204	    
+;  205	    gfx_Begin();            // Initalize graphics
+	CALL	_gfx_Begin
+;  206	    //gfx_SetDrawBuffer();    // Enable buffering (because the screen is fully redrawn each frame)
+;  207	    
+;  208	    
+;  209	    
+;  210	    
+;  211	    
+;  212	select:
+L_20:
+;  213	    // Close any files that may be open already
+;  214	    ti_CloseAll();
+	CALL	_ti_CloseAll
+;  215	    
+;  216	    gfx_SetColor(0xFF);
 	LD	BC,255
 	PUSH	BC
 	CALL	_gfx_SetColor
 	POP	BC
-;  128	        
-;  129	        gfx_FillScreen(74);
+;  217	    gfx_FillScreen(74);
 	LD	BC,74
 	PUSH	BC
 	CALL	_gfx_FillScreen
 	POP	BC
-;  130	        
-;  131	        
-;  132	        ti_Seek(3, SEEK_SET, LLV_FILE);
-	LD	C,(IX+-10)
+;  218	    
+;  219	    search_pos = NULL;
+	LD	BC,0
+	LD	(IX+-12),BC
+;  220	    numFound = 0;
+	LD	(IX+-2),0
+;  221	    
+;  222	    // Pick file
+;  223	    while((var_name = ti_DetectVar(&search_pos, "LLV", TI_APPVAR_TYPE)) != NULL) {
+	JR	L_25
+L_26:
+;  224	        LLV_FILE = ti_Open(var_name, "r");
+	LD	BC,L__8
+	PUSH	BC
+	LD	BC,(IX+-7)
+	PUSH	BC
+	CALL	_ti_Open
+	POP	BC
+	POP	BC
+	LD	(_LLV_FILE),A
+;  225	        
+;  226	        // Read data
+;  227	        strcpy(LLV_header.fileName, var_name);  // File name for printing
+	LD	BC,(IX+-7)
+	PUSH	BC
+	PEA	IX+-38
+	CALL	_strcpy
+	POP	BC
+	POP	BC
+;  228	        strcpy(fileNames[numFound], var_name);      // File name saved for opening
+	LD	BC,(IX+-7)
+	PUSH	BC
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	LD	A,10
+	CALL	__imul_b
+	LD	BC,HL
+	LD	HL,IX
+	LD	DE,-138
+	ADD	HL,DE
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_strcpy
+	POP	BC
+	POP	BC
+;  229	        ti_Seek(3, SEEK_SET, LLV_FILE);         // Seek past "LLV" header
+	LD	A,(_LLV_FILE)
+	LD	C,A
 	LD	B,0
 	PUSH	BC
 	LD	BC,0
@@ -392,198 +662,392 @@ L_43:
 	POP	BC
 	POP	BC
 	POP	BC
-;  133	        
-;  134	        for (i = 0; i < LLV_SIZE; i++) {
-	LD	(IX+-2),0
-	LD	(IX+-1),0
-	JR	L_36
-L_34:
-;  135	            int remainingWidth = LCD_WIDTH - x;
-	LD	HL,320
-	LD	BC,(IX+-9)
-	OR	A,A
-	SBC	HL,BC
-	LD	(IX+-15),HL
-;  136	            
-;  137	            ti_Read(&frame, 1, 1, LLV_FILE);
-	LD	C,(IX+-10)
+;  230	        ti_Read(&LLV_header.fileName+9, 4, 1, LLV_FILE);    // Offsets 0-3
+	LD	A,(_LLV_FILE)
+	LD	C,A
 	LD	B,0
 	PUSH	BC
 	LD	BC,1
 	PUSH	BC
+	LD	BC,4
 	PUSH	BC
-	LD	HL,IX
-	LD	BC,-381
-	ADD	HL,BC
-	LD	BC,HL
+	LEA	BC,IX+-29
 	PUSH	BC
 	CALL	_ti_Read
 	POP	BC
 	POP	BC
 	POP	BC
 	POP	BC
-;  138	            
-;  139	            //line = frame[i];
-;  140	            line = frame[0];
-	LD	BC,-381
-	CALL	__bldix
-	LD	(IX+-5),A
-;  141	            
-;  142	            if(remainingWidth < line) {
+;  231	        ti_Read(&LLV_header.title, 1, LLV_header.titleLength, LLV_FILE);    // Title String
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	A,(IX+-27)
+	UEXT	HL
+	LD	L,A
+	PUSH	HL
+	LD	BC,1
+	PUSH	BC
+	PEA	IX+-26
+	CALL	_ti_Read
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  232	        LLV_header.titleEnd = 0x00;             // Not the best way to do this, but whatever.
+	LD	(IX+-23),0
+;  233	        if((LLV_header.features) & 128) {                   // Captions exist
+	LD	A,(IX+-29)
+	AND	A,128
+	JR	Z,L_22
+;  234	            ti_Read(&LLV_header.captionCount, 2, 1, LLV_FILE);      // Number of captions
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,1
+	PUSH	BC
+	LD	BC,2
+	PUSH	BC
+	PEA	IX+-22
+	CALL	_ti_Read
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  235	            ti_Seek(LLV_header.captionCount, SEEK_CUR, LLV_FILE);   // Seek pask the captions list
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,1
+	PUSH	BC
+	LD	BC,(IX+-22)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_ti_Seek
+	POP	BC
+	POP	BC
+	POP	BC
+;  236	        }
+L_22:
+;  237	        ti_Read(&LLV_header.frameCount, 2, 1, LLV_FILE);            // Number of frames
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,1
+	PUSH	BC
+	LD	BC,2
+	PUSH	BC
+	PEA	IX+-17
+	CALL	_ti_Read
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  238	        
+;  239	        // Print in list
+;  240	        gfx_SetTextXY(10, numFound*8);
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	PUSH	HL
+	LD	BC,10
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  241	        gfx_PrintString(LLV_header.fileName);
+	PEA	IX+-38
+	CALL	_gfx_PrintString
+	POP	BC
+;  242	        /*gfx_SetTextXY(10+64+10, numFound*8);
+;  243	        gfx_PrintUInt(LLV_header.version, 8);
+;  244	        gfx_SetTextXY(10+64+10+64+10, numFound*8);
+;  245	        gfx_PrintUInt(LLV_header.features, 8);
+;  246	        gfx_SetTextXY(10+64+10+64+10+64+10, numFound*8);
+;  247	        gfx_PrintUInt(LLV_header.fps, 3);*/
+;  248	        gfx_SetTextXY(10+64+10, numFound*8);
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	PUSH	HL
+	LD	BC,84
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  249	        //gfx_PrintString(LLV_header.title);
+;  250	        
+;  251	        // Close file.
+;  252	        ti_CloseAll();
+	CALL	_ti_CloseAll
+;  253	        
+;  254	        numFound++;
+	INC	(IX+-2)
+;  255	        if(numFound > 10) break;
+	LD	A,10
+	CP	A,(IX+-2)
+	JR	C,L_31
+;  256	    }
+L_25:
+	LD	BC,21
+	PUSH	BC
+	LD	BC,L__11
+	PUSH	BC
+	PEA	IX+-12
+	CALL	_ti_DetectVar
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	(IX+-7),HL
+	CALL	__icmpzero
+	JR	NZ,L_26
+L_31:
+;  257	    //gfx_SwapDraw();
+;  258	    
+;  259	    for(i = 0; i < numFound; i++) {
+	LD	(IX+-1),0
+	JR	L_30
+L_28:
+	INC	(IX+-1)
+;  260	    }
+L_30:
+	LD	A,(IX+-1)
+	CP	A,(IX+-2)
+	JR	C,L_28
+;  261	    
+;  262	    key = 0;
+	LD	(IX+-3),0
+;  263	    i = 0;
+	LD	(IX+-1),0
+;  264	    while(key != sk_Enter && key != sk_Clear) {
+	JR	L_45
+L_46:
+;  265	        switch(key) {
+	LD	A,(IX+-3)
+	UEXT	HL
+	LD	L,A
+	CALL	__case8
+L__14:
+	DW	2
+	DB	1
+	DW24	L_38	
+
+	DB	4
+	DW24	L_34	
+
+	DW24	L_42	
+
+;  266	            case sk_Up:
+L_34:
+;  267	                if(i > 0) i--;
+	XOR	A,A
+	CP	A,(IX+-1)
+	JR	NC,L_42
+	DEC	(IX+-1)
+;  268	                break;
+	JR	L_42
+;  269	            case sk_Down:
+L_38:
+;  270	                if(i < numFound-1) i++;
+	LD	A,(IX+-2)
 	UEXT	HL
 	LD	L,A
 	LD	BC,HL
-	LD	HL,(IX+-15)
-	OR	A,A
-	SBC	HL,BC
-	JP	P,L_31
-;  143	                // line for remainingWidth
-;  144	                gfx_FillRectangle(x, y, remainingWidth, VERT_SCALE);
-	LD	BC,1
-	PUSH	BC
-	LD	BC,(IX+-15)
-	PUSH	BC
-	LD	A,(IX+-6)
-	UEXT	HL
-	LD	L,A
-	PUSH	HL
-	LD	BC,(IX+-9)
-	PUSH	BC
-	CALL	_gfx_FillRectangle
-	POP	BC
-	POP	BC
-	POP	BC
-	POP	BC
-;  145	                
-;  146	                // line for line - remainingWidth on next line
-;  147	                gfx_FillRectangle(0, y + VERT_SCALE, line - remainingWidth, VERT_SCALE);
-	LD	A,(IX+-5)
+	DEC	BC
+	LD	A,(IX+-1)
 	UEXT	HL
 	LD	L,A
 	OR	A,A
-	LD	BC,(IX+-15)
 	SBC	HL,BC
-	LD	(IX+-18),HL
-	LD	BC,1
+	JP	P,L_42
+	INC	(IX+-1)
+;  271	                break;
+;  272	            // mode for more info?
+;  273	        }
+L_42:
+;  274	        
+;  275	        // Draw selection carrot
+;  276	        tempColor = gfx_SetColor(74);
+	LD	BC,74
 	PUSH	BC
-	LD	BC,(IX+-18)
-	PUSH	BC
-	LD	A,(IX+-6)
+	CALL	_gfx_SetColor
+	POP	BC
+	LD	(IX+-4),A
+;  277	        gfx_FillRectangle(0, 0, 10, 8*numFound);
+	LD	A,(IX+-2)
 	UEXT	HL
 	LD	L,A
-	INC	HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
 	PUSH	HL
+	LD	BC,10
+	PUSH	BC
 	LD	BC,0
 	PUSH	BC
-	CALL	_gfx_FillRectangle
-	POP	BC
-	POP	BC
-	POP	BC
-	POP	BC
-;  148	                
-;  149	                // loop x and +1 to y
-;  150	                x = line - remainingWidth;
-	LD	BC,(IX+-18)
-	LD	(IX+-9),BC
-;  151	                y += VERT_SCALE;
-	INC	(IX+-6)
-;  152	            } else {
-	JR	L_33
-L_31:
-;  153	                // line for line
-;  154	                gfx_FillRectangle(x, y, line, VERT_SCALE);
-	LD	BC,1
-	PUSH	BC
-	LD	A,(IX+-5)
-	UEXT	HL
-	LD	L,A
-	PUSH	HL
-	LD	A,(IX+-6)
-	UEXT	HL
-	LD	L,A
-	PUSH	HL
-	LD	BC,(IX+-9)
 	PUSH	BC
 	CALL	_gfx_FillRectangle
 	POP	BC
 	POP	BC
 	POP	BC
 	POP	BC
-;  155	                // increase x offset by length of line
-;  156	                x += line;
-	LD	A,(IX+-5)
-	UEXT	HL
-	LD	L,A
-	LD	BC,(IX+-9)
-	ADD	HL,BC
-	LD	(IX+-9),HL
-;  157	            }
-L_33:
-;  158	            
-;  159	            if(line != 255) {   // Swap color, unless line length was exactly 255 (0xFF). This is to allow contiguous sections of the same color longer than 255.
-	LD	A,(IX+-5)
-	CP	A,255
-	JR	Z,L_35
-;  160	                color = gfx_SetColor(color);    // To display a line of length 255, encode it as a 255 length line (0xFF) followed by a 0 length line (0xFF).
-	LD	C,(IX+-12)
+;  278	        gfx_SetColor(tempColor);
+	LD	C,(IX+-4)
 	LD	B,0
 	PUSH	BC
 	CALL	_gfx_SetColor
 	POP	BC
-	LD	(IX+-12),A
-;  161	            }
-;  162	            
-;  163	            
-;  164	            // DEBUG: debug var display
-;  165	            /*tempColor = gfx_SetColor(74);
-;  166	            gfx_FillRectangle(0, 200, LCD_WIDTH, 40);
-;  167	            gfx_SetTextXY(0, 200);
-;  168	            gfx_PrintUInt(x, 8);
-;  169	            gfx_SetTextXY(0, 208);
-;  170	            gfx_PrintUInt(y, 8);
-;  171	            gfx_SetTextXY(0, 216);
-;  172	            gfx_PrintUInt(line, 8);
-;  173	            gfx_SetTextXY(0, 224);
-;  174	            gfx_PrintUInt(i, 8);
-;  175	            gfx_SetTextXY(0, 232);
-;  176	            gfx_PrintInt(LLV_SIZE, 8);
-;  177	            gfx_SetColor(tempColor);*/
-;  178	            
-;  179	            
-;  180	        }
-L_35:
-	LD	HL,(IX+-2)
-	INC	HL
-	LD	(IX+-2),L
-	LD	(IX+-1),H
-L_36:
-	LD	BC,(IX+-23)
-	LD	HL,(IX+-2)
-	OR	A,A
-	SBC.SIS	HL,BC
-	JR	C,L_34
-;  181	        
-;  182	        while(!(key = os_GetCSC()));    // DEBUG: wait for keypress
-L_38:
+;  279	        gfx_SetTextXY(0, i*8);
+	LD	A,(IX+-1)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	PUSH	HL
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  280	        gfx_PrintString(">");
+	LD	BC,L__17
+	PUSH	BC
+	CALL	_gfx_PrintString
+	POP	BC
+;  281	        //gfx_SwapDraw();
+;  282	        
+;  283	        while(!(key = os_GetCSC()));
+L_44:
 	CALL	_os_GetCSC
 	LD	(IX+-3),A
 	OR	A,A
-	JR	Z,L_38
-;  183	        if(key == sk_Clear) break;      // DEBUG: quit on clear pressed
-	LD	A,(IX+-3)
-	CP	A,15
-	JR	Z,L_5
-;  184	        //gfx_SwapDraw();
-;  185	    }
-L_42:
-	LD	A,(IX+-3)
-	CP	A,15
-	JR	NZ,L_43
-;  186	    
-;  187	    key = 0;
-;  188	    goto select;
-	JR	L_5
+	JR	Z,L_44
+;  284	    }
 L_45:
+	LD	A,(IX+-3)
+	CP	A,9
+	JR	Z,L_48
+	LD	A,(IX+-3)
+	CP	A,15
+	JR	NZ,L_46
+L_48:
+;  285	    
+;  286	    if(key == sk_Clear) {
+	LD	A,(IX+-3)
+	CP	A,15
+	JR	NZ,L_49
+;  287	        gfx_End();              // End graphics drawing
+	CALL	_gfx_End
+	OR	A,A
+;  288	        return 0;
+	SBC	HL,HL
+	JR	L_58
+;  289	    }
+L_49:
+;  290	    
+;  291	
+;  292	    // Open the selected file.
+;  293	    LLV_FILE = ti_Open("BADAPPLE", "r");
+	LD	BC,L__22
+	PUSH	BC
+	LD	BC,L__23
+	PUSH	BC
+	CALL	_ti_Open
+	POP	BC
+	POP	BC
+;  294	    
+;  295	    //ti_Read(&frame, 1, sizeof(frame), LLV_FILE);
+;  296	    
+;  297	    LLV_SIZE = ti_GetSize(LLV_FILE);
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	(_LLV_FILE),A
+	CALL	_ti_GetSize
+	POP	BC
+	LD	(IX+-9),L
+	LD	(IX+-8),H
+;  298	    
+;  299	    // Seek to the beginning of the frame data
+;  300	    ti_Seek(3 + 7 + LLV_header.titleLength + 2, SEEK_SET, LLV_FILE);
+	LD	A,(_LLV_FILE)
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,0
+	PUSH	BC
+	LD	A,(IX+-27)
+	UEXT	HL
+	LD	L,A
+	LD	IY,HL
+	LEA	BC,IY+12
+	PUSH	BC
+	CALL	_ti_Seek
+	POP	BC
+	POP	BC
+	POP	BC
+;  301	    gfx_SetTextXY(0, 0);
+	LD	BC,0
+	PUSH	BC
+	PUSH	BC
+	CALL	_gfx_SetTextXY
+	POP	BC
+	POP	BC
+;  302	    gfx_PrintUInt(LLV_header.frameCount, 8);
+	LD	BC,8
+	PUSH	BC
+	LD	BC,(IX+-17)
+	CALL	__stoiu
+	PUSH	HL
+	CALL	_gfx_PrintUInt
+	POP	BC
+	POP	BC
+;  303	    //gfx_SwapDraw();
+;  304	    
+;  305	    while(!(key = os_GetCSC()));
+L_51:
+	CALL	_os_GetCSC
+	LD	(IX+-3),A
+	OR	A,A
+	JR	Z,L_51
+;  306	    
+;  307	    for(i = 0; i < LLV_header.frameCount; i++) {
+	LD	(IX+-1),0
+	JR	L_55
+L_53:
+;  308	        
+;  309	        loadFrame();
+	CALL	_loadFrame
+	INC	(IX+-1)
+;  310	        //gfx_SwapDraw();
+;  311	        
+;  312	        //if(key == sk_Clear) break;      // DEBUG: quit on clear pressed
+;  313	    }
+L_55:
+	LD	C,(IX+-1)
+	LD	B,0
+	LD	HL,BC
+	LD	BC,(IX+-17)
+	OR	A,A
+	SBC.SIS	HL,BC
+	JR	C,L_53
+;  314	    
+;  315	    key = 0;
+;  316	    goto select;
+	JR	L_20
+;  317	}
+L_58:
 	LD	SP,IX
 	POP	IX
 	RET	
@@ -591,56 +1055,57 @@ L_45:
 
 ;**************************** _main ***************************
 ;Name                         Addr/Register   Size   Type
-;_ti_Read                            IMPORT  -----   function
-;_ti_Seek                            IMPORT  -----   function
+;_gfx_PrintUInt                      IMPORT  -----   function
 ;_ti_GetSize                         IMPORT  -----   function
-;_ti_Open                            IMPORT  -----   function
 ;_gfx_End                            IMPORT  -----   function
 ;_os_GetCSC                          IMPORT  -----   function
 ;_gfx_FillRectangle                  IMPORT  -----   function
+;_ti_DetectVar                       IMPORT  -----   function
 ;_gfx_PrintString                    IMPORT  -----   function
 ;_gfx_SetTextXY                      IMPORT  -----   function
-;_ti_DetectVar                       IMPORT  -----   function
+;_ti_Read                            IMPORT  -----   function
+;_ti_Seek                            IMPORT  -----   function
 ;_strcpy                             IMPORT  -----   function
+;_LLV_FILE                           STATIC      1   variable
+;_ti_Open                            IMPORT  -----   function
 ;_gfx_FillScreen                     IMPORT  -----   function
 ;_gfx_SetColor                       IMPORT  -----   function
-;_gfx_Begin                          IMPORT  -----   function
 ;_ti_CloseAll                        IMPORT  -----   function
-;_0temp0                             STATIC    100   variable
-;frame                               IX-381    255   variable
-;names                               IX-126    100   variable
-;search_pos                           IX-26      3   variable
-;LLV_SIZE                             IX-23      2   variable
-;var_name                             IX-21      3   variable
-;G_0                                  IX-18      3   variable
-;remainingWidth                       IX-15      3   variable
-;color                                IX-12      1   variable
-;tempColor                            IX-11      1   variable
-;LLV_FILE                             IX-10      1   variable
-;x                                     IX-9      3   variable
-;y                                     IX-6      1   variable
-;line                                  IX-5      1   variable
-;numFound                              IX-4      1   variable
+;_gfx_Begin                          IMPORT  -----   function
+;_0temp19                            STATIC    100   variable
+;fileNames                           IX-138    100   variable
+;LLV_header                           IX-38     26   variable
+;search_pos                           IX-12      3   variable
+;LLV_SIZE                              IX-9      2   variable
+;var_name                              IX-7      3   variable
+;tempColor                             IX-4      1   variable
 ;key                                   IX-3      1   variable
-;i                                     IX-2      2   variable
+;numFound                              IX-2      1   variable
+;i                                     IX-1      1   variable
 
 
-; Stack Frame Size: 387 (bytes)
+; Stack Frame Size: 144 (bytes)
 ;       Spill Code: 0 (instruction)
 
 
 	SEGMENT STRSECT
-L__1:
-	DB	"LLV"
-	DB	0
-L__7:
-	DB	">"
-	DB	0
-L__12:
+L__8:
 	DB	"r"
 	DB	0
+L__11:
+	DB	"LLV"
+	DB	0
+L__17:
+	DB	">"
+	DB	0
+L__22:
+	DB	"r"
+	DB	0
+L__23:
+	DB	"BADAPPLE"
+	DB	0
 	SEGMENT TEXT
-_0temp0:
+_0temp19:
 	DB	95
 	DB	95
 	DB	95
@@ -749,6 +1214,7 @@ _0temp0:
 	XREF _ti_CloseAll:ROM
 	XREF _gfx_SetTextXY:ROM
 	XREF _gfx_PrintString:ROM
+	XREF _gfx_PrintUInt:ROM
 	XREF _gfx_FillRectangle:ROM
 	XREF _gfx_FillScreen:ROM
 	XREF _gfx_SetColor:ROM
@@ -759,9 +1225,10 @@ _0temp0:
 	XREF __stoiu:ROM
 	XREF __bldix:ROM
 	XREF __frameset:ROM
-	XREF __setflag:ROM
 	XREF __icmpzero:ROM
 	XREF __case8:ROM
 	XREF __imul_b:ROM
 	XDEF _main
+	XDEF _loadFrame
+	XDEF _LLV_FILE
 	END
