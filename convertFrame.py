@@ -40,7 +40,7 @@ headerBytes += bytes(title, "ascii")  # Title
 
 videoBytes = bytes()
 
-frameCount = 0
+frameTotal = 0
 
 while(True):
 
@@ -48,15 +48,15 @@ while(True):
     ret, frame = inputVideo.read()
 
     if ret:  # Convert to PIL & encode as LLV
-        # cv2.imwrite(''+str(frameCount) + "a.png", frame)
+        # cv2.imwrite(''+str(frameTotal) + "a.png", frame)
         color_coverted = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(color_coverted)
 
-        # img.save(''+str(frameCount) + "b.png")
+        # img.save(''+str(frameTotal) + "b.png")
 
         img = img.convert('1', dither=False)  # convert image to 2 color black and white
         img = img.resize((320, 240))  # , box=(0, 0, width, height)
-        # img.save(''+str(frameCount) + "c.png")
+        # img.save(''+str(frameTotal) + "c.png")
 
         pixels = img.load()  # this is not a list, nor is it list()'able
         color = pixels[0, 0]
@@ -91,18 +91,19 @@ while(True):
         # Frame Header & This is how the TI-84 stores 16 bit ints, so thats how we store it.
         frameBytes = bytes([(pixels[0, 0] == 0) * 0x80]) + lineCount.to_bytes(2, 'little') + frameBytes
 
-        frameCount += 1
+        frameTotal += 1
 
         videoBytes += frameBytes
 
-        print("Encoded frame", frameCount, "with", lineCount, "lines.")
+        print("Encoded frame", frameTotal, "with", lineCount, "lines.")
 
     else:
         break
 
-    if(frameCount > 120):
+    if(frameTotal > 120):
         break
 
-videoBytes = headerBytes + frameCount.to_bytes(2, 'little') + videoBytes
+# frameTotal twice because we dont generate more files yet
+videoBytes = headerBytes + frameTotal.to_bytes(2, 'little') + frameTotal.to_bytes(1, 'little') + videoBytes
 
 outputBin.write(videoBytes)

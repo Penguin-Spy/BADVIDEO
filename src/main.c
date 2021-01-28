@@ -67,14 +67,14 @@ typedef struct
     char* title;
     uint16_t   captionCount;
     caption_t* captions;
-    uint16_t   frameCount;
-} llv_header_t;
+    uint16_t   frameTotal;
+} llvh_header_t;
 
 ti_var_t LLV_FILE;
 
 int main(void)
 {
-    llv_header_t LLV_header;
+    llvh_header_t LLVH_header;
     frame_header_t frame_header;
 
     //uint8_t frame[] = {255,255,255,255,255,190,4,255,59,8,255,57,8,255,56,10,255,55,10,255,55,10,255,55,10,255,56,8,255,57,8,255,59,4,255,255,255,25,4,255,59,8,255,57,8,255,56,10,255,55,10,255,55,10,255,55,10,255,56,8,255,57,8,255,59,4,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,20,4,255,59,8,255,56,9,255,55,11,255,53,12,255,53,12,255,52,13,255,51,13,255,51,14,84,4,217,14,83,8,214,15,83,8,213,14,84,10,211,15,84,10,210,15,85,10,209,15,86,10,208,15,87,10,207,15,88,10,206,15,89,11,204,15,90,11,204,14,91,12,202,14,93,12,200,14,94,12,199,14,96,12,197,14,97,13,195,14,99,13,193,14,100,14,191,15,101,14,189,15,103,14,187,15,104,16,184,15,106,16,182,15,108,16,180,15,110,16,179,14,112,16,177,14,114,17,174,14,116,17,172,14,118,17,170,14,121,16,168,14,123,17,165,14,125,17,163,15,126,17,161,15,128,18,158,15,131,17,156,15,133,17,154,15,135,18,152,14,137,18,150,14,140,17,148,14,142,18,145,14,144,18,143,14,147,18,140,14,149,18,138,14,151,19,135,15,153,18,133,15,155,19,130,15,157,19,128,15,160,19,124,16,162,20,121,16,165,19,119,16,167,20,116,16,170,20,113,16,172,21,109,17,175,21,106,17,177,22,102,18,180,22,99,17,184,23,94,18,186,25,90,18,189,25,86,19,192,26,81,20,195,26,77,20,199,27,73,20,202,28,67,21,206,29,61,23,209,30,56,23,213,32,49,25,217,34,41,26,222,36,32,28,226,43,18,31,231,88,234,84,239,79,244,73,250,67,255,1,62,255,7,55,255,15,47,255,23,38,255,36,24,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255};
@@ -89,6 +89,7 @@ int main(void)
     char* var_name;
     uint8_t* search_pos;
     uint8_t  numFound;
+    uint16_t h;
     uint16_t i;
     uint16_t j;
 
@@ -104,6 +105,10 @@ int main(void)
     uint8_t  remainingFrameBytes;
     uint8_t  line;
     uint8_t  color = 0;
+
+    uint16_t remainingFrames;
+    uint8_t  frameCount;        // More than 255 frames cannot physically fit into 64ki (min frame size is 305, so 214.8 frames can fit)
+                                //(this likely [hopefully] will change when compression is implemented)
 
     gfx_Begin(); // Initalize graphics
 
@@ -122,38 +127,38 @@ select:
         LLV_FILE = ti_Open(var_name, "r");
 
         // Read data
-        strcpy(LLV_header.fileName, var_name);             // File name for printing
+        strcpy(LLVH_header.fileName, var_name);             // File name for printing
         strcpy(fileNames[numFound], var_name);             // File name saved for opening
         ti_Seek(4, SEEK_SET, LLV_FILE);                    // Seek past "LLVH" header
-        ti_Read(&LLV_header.fileName + 8, 4, 1, LLV_FILE); // Offsets 0-3
-        LLV_header.title = (char*)ti_MallocString(LLV_header.titleLength);
-        ti_Read(LLV_header.title, 1, LLV_header.titleLength, LLV_FILE); // Title String
-        if ((LLV_header.features) & 128)
+        ti_Read(&LLVH_header.fileName + 8, 4, 1, LLV_FILE); // Offsets 0-3
+        LLVH_header.title = (char*)ti_MallocString(LLVH_header.titleLength);
+        ti_Read(LLVH_header.title, 1, LLVH_header.titleLength, LLV_FILE); // Title String
+        if ((LLVH_header.features) & 128)
         {                                                         // Captions exist
-            ti_Read(&LLV_header.captionCount, 2, 1, LLV_FILE);    // Number of captions
-            ti_Seek(LLV_header.captionCount, SEEK_CUR, LLV_FILE); // Seek pask the captions list
+            ti_Read(&LLVH_header.captionCount, 2, 1, LLV_FILE);    // Number of captions
+            ti_Seek(LLVH_header.captionCount, SEEK_CUR, LLV_FILE); // Seek pask the captions list
         }
-        ti_Read(&LLV_header.frameCount, 1, 2, LLV_FILE); // Number of frames
+        ti_Read(&LLVH_header.frameTotal, 1, 2, LLV_FILE); // Number of frames
 
         // Print in list
         gfx_SetTextXY(10, numFound * 8);
-        gfx_PrintString(LLV_header.fileName);
+        gfx_PrintString(LLVH_header.fileName);
         /*gfx_SetTextXY(10+64+10, numFound*8);
-        gfx_PrintUInt(LLV_header.version, 8);
+        gfx_PrintUInt(LLVH_header.version, 8);
         gfx_SetTextXY(10+64+10+64+10, numFound*8);
-        gfx_PrintUInt(LLV_header.features, 8);
+        gfx_PrintUInt(LLVH_header.features, 8);
         gfx_SetTextXY(10+64+10+64+10+64+10, numFound*8);
-        gfx_PrintUInt(LLV_header.fps, 3);*/
+        gfx_PrintUInt(LLVH_header.fps, 3);*/
         gfx_SetTextXY(10 + 64 + 10, numFound * 8);
-        gfx_PrintString(LLV_header.title);
+        gfx_PrintString(LLVH_header.title);
         /*gfx_SetTextXY(10, 8);
-        gfx_PrintUInt(LLV_header.version, 8);
+        gfx_PrintUInt(LLVH_header.version, 8);
         gfx_SetTextXY(10, 16);
-        gfx_PrintUInt(LLV_header.features, 8);
+        gfx_PrintUInt(LLVH_header.features, 8);
         gfx_SetTextXY(10, 24);
-        gfx_PrintUInt(LLV_header.fps, 8);
+        gfx_PrintUInt(LLVH_header.fps, 8);
         gfx_SetTextXY(10, 32);
-        gfx_PrintUInt(LLV_header.titleLength, 8);
+        gfx_PrintUInt(LLVH_header.titleLength, 8);
         while (!(key = os_GetCSC()))*/
 
         // Close file.
@@ -172,18 +177,18 @@ select:
         key = sk_Clear;
     }
 
-    i = 0;
+    h = 0;
     while (key != sk_Enter && key != sk_Clear)
     {
         switch (key)
         {
         case sk_Up:
-            if (i > 0)
-                i--;
+            if (h > 0)
+                h--;
             break;
         case sk_Down:
-            if (i < numFound - 1)
-                i++;
+            if (h < numFound - 1)
+                h++;
             break;
             // `mode` for more info?
         }
@@ -192,7 +197,7 @@ select:
         tempColor = gfx_SetColor(74);
         gfx_FillRectangle(0, 0, 10, 8 * numFound);
         gfx_SetColor(tempColor);
-        gfx_SetTextXY(0, i * 8);
+        gfx_SetTextXY(0, h * 8);
         gfx_PrintString(">");
 
         while (!(key = os_GetCSC()));
@@ -204,20 +209,34 @@ select:
         return 0;
     }
 
-    // Open the selected file.
-    LLV_FILE = ti_Open(fileNames[i], "r");
+    remainingFrames = LLVH_header.frameTotal;
 
-    //ti_Read(&frame, 1, sizeof(frame), LLV_FILE);
+    //TODO: read filenames properly
+    LLV_FILE = ti_Open(fileNames[h], "r");
+
+    // Seek to the beginning of the frame data
+    //      LLVH, Header, Title string,       frameTotal     frameCount
+    ti_Seek(4 + 4 + LLVH_header.titleLength + 2, SEEK_SET, LLV_FILE);
+
+    goto skip_open;
+open:
+    // Open the selected file.
+
+    //TODO: read filenames properly
+    LLV_FILE = ti_Open(fileNames[h], "r");
 
     //LLV_SIZE = ti_GetSize(LLV_FILE);
 
-    // Seek to the beginning of the frame data
-    //      LLVH, Header, Title string,            frameCount
-    ti_Seek(4 + 4 + LLV_header.titleLength + 2, SEEK_SET, LLV_FILE);
+skip_open:
+    ti_Read(&frameCount, 1, 1, LLV_FILE);
+
     gfx_FillScreen(74);
     gfx_SetTextXY(0, 0);
-    gfx_PrintUInt(LLV_header.frameCount, 8);
-
+    gfx_PrintUInt(LLVH_header.frameTotal, 8);
+    gfx_SetTextXY(0, 8);
+    gfx_PrintUInt(frameCount, 8);
+    gfx_PrintStringXY(fileNames[h], 0, 16);
+    fileNames[h][7]++;
     while (!(key = os_GetCSC()));
 
     /*while(key != sk_Clear) {
@@ -238,8 +257,7 @@ select:
 
     //gfx_SetDrawBuffer(); // Enable buffering (because the screen is fully redrawn each frame)
 
-    for (i = 0; i < LLV_header.frameCount; i++)
-    {
+    for (i = 0; i < frameCount; i++) {
 
         ti_Read(&frameHeader, 1, 1, LLV_FILE);
         ti_Read(&lineCount, 1, 2, LLV_FILE);
@@ -354,6 +372,14 @@ select:
 
         //if(key == sk_Clear) break;      // DEBUG: quit on clear pressed
     }
+
+    remainingFrames -= frameCount;  // Subtract the # of frames we just displayed from the total number of frames left
+
+    if (remainingFrames > 0) {  // Frames left to read
+        ti_CloseAll();
+        goto open;
+    }
+
 
     key = 0;
     //gfx_SetDrawScreen();

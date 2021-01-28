@@ -2,14 +2,14 @@ Segment  Base   Top    High   Length
 -------- ------ ------ ------ -------
 icon     D1A882 D1A9D0           14Eh
 launcher D1A9D0 D1AA28            58h
-libs     D1AA28 D1AA81            59h
-startup  D1AA81 D1AAC0            3Fh
-cleanup  D1AAC0 D1AAD4            14h
-exit     D1AAD4 D1AADA             6h
-code     D1AADA D1B12A           650h
-data     D1B12A D1B14F            25h
-strsect  D1B14F D1B16B            1Ch
-text     D1B16B D1B1CF            64h
+libs     D1AA28 D1AA85            5Dh
+startup  D1AA85 D1AAC4            3Fh
+cleanup  D1AAC4 D1AAD8            14h
+exit     D1AAD8 D1AADE             6h
+code     D1AADE D1B22F           751h
+data     D1B22F D1B254            25h
+strsect  D1B254 D1B272            1Eh
+text     D1B272 D1B2D6            64h
 bss      D031F6 D031FD D13FD6      7h
 header   D1A87F D1A882             3h
 
@@ -150,29 +150,31 @@ _asm_DisableAPD           = 021134
 _asm_EnableAPD            = 021138
 _asm_DrawStatusBar        = 021A3C
 _asm_ArcChk               = 022040
-_os_DisableHomeTextBuffer = D1AADA
-_os_EnableHomeTextBuffer  = D1AAEC
+_os_DisableHomeTextBuffer = D1AADE
+_os_EnableHomeTextBuffer  = D1AAF0
 __case8                   = 000124
-__frameset                = D1AAFE
+__frameset                = D1AB02
 __imul_b                  = 000158
 __imul_b                  = 000150
 __stoiu                   = 000264
-__s_sbrk                  = D1AB0C
+__s_sbrk                  = D1AB10
+__ildix                   = 000148
+__istix                   = 00018C
 _strcpy                   = 0000CC
 __icmpzero                = 000138
-_malloc                   = D1AB5D
+_malloc                   = D1AB61
 __alloc_base              = D031F6
 __findlibload             = D1A9D0
 __program_icon            = D1A887
 __program_description     = D1A989
-__ccleanup                = D1AAC0
+__ccleanup                = D1AAC4
 _errno                    = D008DC
 _init                     = D1A882
-_exit                     = D1AAD6
-__exit                    = D1AAAF
-__exitsp                  = D1AAAF
-__errsp                   = D1AAAF
-_main                     = D1AC05
+_exit                     = D1AADA
+__exit                    = D1AAB3
+__exitsp                  = D1AAB3
+__errsp                   = D1AAB3
+_main                     = D1AC09
 _LLV_FILE                 = D031FC
 _ti_CloseAll              = D1AA3C
 _ti_Open                  = D1AA40
@@ -186,6 +188,7 @@ _gfx_SetColor             = D1AA65
 _gfx_FillScreen           = D1AA69
 _gfx_PrintUInt            = D1AA6D
 _gfx_PrintString          = D1AA71
-_gfx_SetTextXY            = D1AA75
-_gfx_FillRectangle        = D1AA79
-_gfx_HorizLine_NoClip     = D1AA7D
+_gfx_PrintStringXY        = D1AA75
+_gfx_SetTextXY            = D1AA79
+_gfx_FillRectangle        = D1AA7D
+_gfx_HorizLine_NoClip     = D1AA81
