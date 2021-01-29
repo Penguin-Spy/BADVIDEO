@@ -27,22 +27,31 @@ DESCRIPTION ?= "Bad Apple for the TI 84+ CE (but its black and white anyways, so
 
 include $(CEDEV)/include/.makefile
 
-
-VIDEO                := $(basename $(notdir $(wildcard src/video/*.png)))
-
-
-VIDEOBINDIR          := $(BINDIR)
+VIDEOBINDIR          := $(BINDIR)/video
 VIDEOSRCDIR          := $(SRCDIR)/video
-VIDEO8XV             := $(VIDEO).8xv
+
+# makes a group from a video (video → *.bin → *.8vx → NAME.8xg)
+# doesn't work because groups must fit in 64k
+#$(BINDIR)/%.8xg: $(VIDEOSRCDIR)/%.mp4
+#	$(Q)echo Converting $^ to $@
+#	py convertFrame.py $^ $(OBJDIR) $(basename $(notdir $@))
+#	$(CONVBIN) -n $(basename $(notdir $@)) -j bin -k 8xg-auto-extract -o $@ -r $(addprefix -i , $(wildcard obj/*.8xv))
 
 
-$(BINDIR)/%.8xv: $(BINDIR)/%.bin
+$(VIDEOBINDIR)/%.8xv: $(VIDEOBINDIR)/%.bin
 	$(Q)echo $^ $@
-	$(CONVBIN) -n $(basename $(notdir $@)) -j bin -k 8xv -i $^ -o $@
+	$(Q)$(CONVBIN) -n $(basename $(notdir $@)) -j bin -k 8xv -i $^ -o $@ -r
 
-$(BINDIR)/%.bin: $(VIDEOSRCDIR)/%.mp4
+$(VIDEOBINDIR)/%.8xv: $(VIDEOSRCDIR)/%.mp4
 	$(Q)echo Converting $^ to $@
-	py convertFrame.py $^ $@
+	$(Q)py convertFrame.py $^ $(VIDEOBINDIR) $(basename $(notdir $@))
 
-test:
-	$(Q)echo $(VIDEO)
+
+%: $(VIDEOBINDIR)/%.8xv
+	$(Q)echo Created video $@
+
+rmvideo:
+	$(Q)$(RM) $(VIDEOBINDIR)/*.bin
+	$(Q)$(RM) $(VIDEOBINDIR)/*.8xv
+
+.PRECIOUS: $(VIDEOBINDIR)/%.8xv

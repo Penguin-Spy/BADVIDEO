@@ -13,15 +13,27 @@ from PIL import Image
 from tinytag import TinyTag
 import cv2
 import sys
+import os
+
+
+def save8xv(outFile, outBytes):
+    outFile.write(outBytes)
+    print("Wrote ", len(outBytes), " bytes to ", outFile.name)
+    outFile.close()
+    os.system('make ' + str(outFile.name).replace('.bin', '.8xv'))
+    os.remove(outFile.name)  # Remove intermediate .bin file
+
 
 inputPath = sys.argv[1]
 outputPath = sys.argv[2]
+if (not outputPath.endswith('/')):
+    outputPath += '/'
+varName = sys.argv[3][0:8].upper()
 
 # Read the video from specified path
 inputVideo = cv2.VideoCapture(inputPath)
 inputVideoTag = TinyTag.get(inputPath)
 
-outputBin = open(outputPath, "wb")
 
 # title = "Bad Apple"
 title = inputVideoTag.title
@@ -33,14 +45,25 @@ headerBytes = bytes("LLVH", "ascii")
 headerBytes += bytes([0b00000000])        # Version (0=debug)
 headerBytes += bytes([0b01000000])   # Features (0 - Captions; 1 - Sound; 2-7 Reserved, should be zeros.)
 headerBytes += bytes([0b00000101])   # FPS
-headerBytes += len(title).to_bytes(1, 'big')   # Title length
-headerBytes += bytes(title, "ascii")  # Title
+headerBytes += len(title).to_bytes(1, 'big')  # Title length
+try:
+    headerBytes += bytes(title, "ascii")  # Title
+except Exception:
+    print("[Warning]: Title could not be encoded via ascii. Setting to default: 'unknown'")
+    title = "unknown"
 # captionCount
 # *captions
 
-videoBytes = bytes()
 
-frameTotal = 0
+frameTotal = 0  # Overall total frames in the entire video
+frameCount = 0  # How many frames are in this file
+fileIndex = 0  # Which file is this
+maxFrameSize = 0  # Size of the largest frame
+
+outputBin = None
+videoBytes = bytes()
+outputBinFirst = open(outputPath + varName[0:8] + '.bin', 'wb')
+videoBytesFirst = bytes()
 
 while(True):
 
@@ -91,19 +114,57 @@ while(True):
         # Frame Header & This is how the TI-84 stores 16 bit ints, so thats how we store it.
         frameBytes = bytes([(pixels[0, 0] == 0) * 0x80]) + lineCount.to_bytes(2, 'little') + frameBytes
 
-        frameTotal += 1
+        if (len(frameBytes) > maxFrameSize):
+            maxFrameSize = len(frameBytes)
 
-        videoBytes += frameBytes
+        frameTotal += 1
+        frameCount += 1
 
         print("Encoded frame", frameTotal, "with", lineCount, "lines.")
 
+        if (len(videoBytes) + len(frameBytes) > 65232):  # This frame wont fit in this file
+            if (outputBin == None):  # We're on the first file
+                # Save the first bytes for later (writing the file header)
+                videoBytesFirst = frameCount.to_bytes(1, 'little') + bytes(videoBytes)
+            else:
+                save8xv(outputBin, frameCount.to_bytes(1, 'little') + videoBytes)
+                # outputBin.write(frameCount.to_bytes(1, 'little') + videoBytes)
+                # print("Wrote ", len(videoBytes), " bytes to ", outputBin.name)
+                # outputBin.close()
+                # os.system('make ' + str(outputBin.name).replace('.bin', '.8xv'))
+            outputBin = open(f'{outputPath}{varName[0:6]}{fileIndex:02d}.bin', 'wb')
+            # outputPath + varName[0:6] + str(int(fileIndex)) + '.bin', 'wb')
+            fileIndex += 1
+
+            frameCount = 0  # Reset count of frames in this file to 0 (because it's a new file)
+            videoBytes = bytes()
+
+        else:
+            videoBytes += frameBytes
+
     else:
+        print("End of video reached.")
         break
 
-    if(frameTotal > 120):
+    if(frameTotal > 2000):
         break
 
-# frameTotal twice because we dont generate more files yet
-videoBytes = headerBytes + frameTotal.to_bytes(2, 'little') + frameTotal.to_bytes(1, 'little') + videoBytes
+if (len(videoBytes) > 0):  # There is still a file left to save
+    if (outputBin == None):  # It's actually just the first file
+        videoBytesFirst = frameCount.to_bytes(1, 'little') + bytes(videoBytes)
+    else:
+        save8xv(outputBin, frameCount.to_bytes(1, 'little') + videoBytes)
+        # outputBin.write(frameCount.to_bytes(1, 'little') + videoBytes)
+        # os.system('make ' + str(outputBin.name).replace('.bin', '.8xv'))
+        # print("Wrote ", len(videoBytes), " bytes to ", outputBin.name)
+        # outputBin.close()
 
-outputBin.write(videoBytes)
+
+# save header + total frame count + video bytes (this file's frameCount was saved into videoBytesFirst earlier)
+videoBytesFirst = headerBytes + frameTotal.to_bytes(2, 'little') + videoBytesFirst
+
+save8xv(outputBinFirst, videoBytesFirst)
+# outputBinFirst.write(videoBytesFirst)
+# os.system('make ' + str(outputBinFirst.name).replace('.bin', '.8xv'))
+
+print(f"Converted {inputPath} to {varName}.8xp with {fileIndex} files.\nThe largest single frame was {maxFrameSize} bytes.")

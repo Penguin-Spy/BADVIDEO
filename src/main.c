@@ -99,8 +99,8 @@ int main(void)
     uint16_t x;
     uint8_t  y;
     uint8_t  VERT_SCALE = 1;
-    uint8_t  FRAME_BYTE_BUFFER_SIZE = 1024;
-    uint8_t  frame[1024]; // help how do i make the buffer size set from the var above, the one above doesn't change
+    uint16_t FRAME_BYTE_BUFFER_SIZE = 2282;
+    uint8_t  frame[2282]; // help how do i make the buffer size set from the var above, the one above doesn't change
     uint16_t remainingWidth;
     uint8_t  remainingFrameBytes;
     uint8_t  line;
@@ -213,10 +213,14 @@ select:
 
     //TODO: read filenames properly
     LLV_FILE = ti_Open(fileNames[h], "r");
+    fileNames[h][6] = '0';
+    fileNames[h][7] = '0';
 
     // Seek to the beginning of the frame data
     //      LLVH, Header, Title string,       frameTotal     frameCount
     ti_Seek(4 + 4 + LLVH_header.titleLength + 2, SEEK_SET, LLV_FILE);
+
+    //gfx_SetDrawBuffer(); // Enable buffering (because the screen is fully redrawn each frame)
 
     goto skip_open;
 open:
@@ -224,20 +228,24 @@ open:
 
     //TODO: read filenames properly
     LLV_FILE = ti_Open(fileNames[h], "r");
+    fileNames[h][7]++;
+    if (fileNames[h][7] == ':') {
+        fileNames[h][6]++;
+        fileNames[h][7] = '0';
+    }
 
     //LLV_SIZE = ti_GetSize(LLV_FILE);
 
 skip_open:
     ti_Read(&frameCount, 1, 1, LLV_FILE);
 
-    gfx_FillScreen(74);
+    /*gfx_FillScreen(74);
     gfx_SetTextXY(0, 0);
     gfx_PrintUInt(LLVH_header.frameTotal, 8);
     gfx_SetTextXY(0, 8);
     gfx_PrintUInt(frameCount, 8);
     gfx_PrintStringXY(fileNames[h], 0, 16);
-    fileNames[h][7]++;
-    while (!(key = os_GetCSC()));
+    while (!(key = os_GetCSC()));*/
 
     /*while(key != sk_Clear) {
 
@@ -255,8 +263,6 @@ skip_open:
         while(!(key = os_GetCSC()));
     }*/
 
-    //gfx_SetDrawBuffer(); // Enable buffering (because the screen is fully redrawn each frame)
-
     for (i = 0; i < frameCount; i++) {
 
         ti_Read(&frameHeader, 1, 1, LLV_FILE);
@@ -272,32 +278,32 @@ skip_open:
             color = gfx_SetColor(color);
         }
 
-        //while(!(key = os_GetCSC()));
 
         // DEBUG: clear screen before draw.
         //gfx_FillScreen(74);
         // DEBUG: debug var display
         /*tempColor = gfx_SetColor(74);
-            gfx_FillRectangle(0, 200, 64, 40);
-            gfx_SetTextXY(0, 200);
-            gfx_PrintUInt(lineCount, 16);
-            gfx_SetTextXY(0, 208);
-            gfx_PrintUInt(j, 16);
-            gfx_SetTextXY(0, 216);
-            gfx_PrintUInt(frameHeader, 8);
-            /*gfx_SetTextXY(0, 224);
-            gfx_PrintUInt(i, 8);
-            gfx_SetTextXY(0, 232);
-            gfx_PrintInt(LLV_SIZE, 8);*/
-            //gfx_SetColor(tempColor);
+        gfx_FillRectangle(0, 200, 64, 40);
+        gfx_SetTextXY(0, 200);
+        gfx_PrintUInt(lineCount, 16);
+        gfx_SetTextXY(0, 208);
+        gfx_PrintUInt(j, 16);
+        gfx_SetTextXY(0, 216);
+        gfx_PrintUInt(frameHeader, 8);
+        /*gfx_SetTextXY(0, 224);
+        gfx_PrintUInt(i, 8);
+        gfx_SetTextXY(0, 232);
+        gfx_PrintInt(LLV_SIZE, 8);*/
+        //gfx_SetColor(tempColor);
+        //while (!(key = os_GetCSC()));
 
-        if (key == sk_Clear || lineCount > 1000)
+        if (key == sk_Clear || lineCount > FRAME_BYTE_BUFFER_SIZE)
         {
             return 0;
         }
 
-        remainingFrameBytes = 0;
-        ti_Read(&frame, 1, lineCount, LLV_FILE);
+        //remainingFrameBytes = 0;
+        ti_Read(&frame, lineCount, 1, LLV_FILE);
 
         for (j = 0; j < lineCount; j++) {
 
@@ -360,7 +366,7 @@ skip_open:
             gfx_PrintInt(y, 8);
             gfx_SetColor(tempColor);*/
 
-            remainingFrameBytes--;
+            //remainingFrameBytes--;
         }
 
         /*tempColor = gfx_SetColor(74);
