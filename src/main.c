@@ -96,12 +96,13 @@ int main(void)
 
     uint8_t  frameHeader;
     uint16_t lineCount;
-    uint16_t x;
-    uint8_t  y;
+    uint24_t x;
+    uint16_t y;
     uint8_t  VERT_SCALE = 1;
-    uint16_t FRAME_BYTE_BUFFER_SIZE = 2282;
-    uint8_t  frame[2282]; // help how do i make the buffer size set from the var above, the one above doesn't change
-    uint16_t remainingWidth;
+    uint8_t  HORIZ_SCALE = 1;
+    uint16_t FRAME_BYTE_BUFFER_SIZE = 2924;//2282;
+    uint8_t  frame[2924]; // help how do i make the buffer size set from the var above, the one above doesn't change
+    uint16_t remainingLength;
     uint8_t  remainingFrameBytes;
     uint8_t  line;
     uint8_t  color = 0;
@@ -245,7 +246,7 @@ skip_open:
     gfx_SetTextXY(0, 8);
     gfx_PrintUInt(frameCount, 8);
     gfx_PrintStringXY(fileNames[h], 0, 16);
-    while (!(key = os_GetCSC()));*/
+    while (!(key = os_GetCSC()));
 
     /*while(key != sk_Clear) {
 
@@ -269,12 +270,12 @@ skip_open:
         ti_Read(&lineCount, 1, 2, LLV_FILE);
 
         // draw (320x240)
-        x = 0;
+        x = 0xD40000;
         y = 0;
         color = 0x00;
         gfx_SetColor(0xFF); // Setup color swapping
-        if (frameHeader & 128)
-        { // If 1st bit set, start with white
+
+        if (frameHeader & 128) { // If 1st bit set, start with white
             color = gfx_SetColor(color);
         }
 
@@ -305,69 +306,158 @@ skip_open:
         //remainingFrameBytes = 0;
         ti_Read(&frame, lineCount, 1, LLV_FILE);
 
-        for (j = 0; j < lineCount; j++) {
 
-            // Load more data if nessecary
-            /*if(remainingFrameBytes < 1) {
+        // We have the whole loop inside the for loop (which results in a lot of code duplication)
+        // because that way we only check the compression direction once before we loop,
+        // instead of every single line. If there's a better way to do this, I would like to know.
 
-                // Calculate how many bytes to load: Frame sizes will not fit into multiples of the frame byte buffer size, and we don't want to read data from the next frame because that messes up the seek cursor pos
-                uint16_t bytesToLoad = lineCount - j;
-                if(bytesToLoad > FRAME_BYTE_BUFFER_SIZE) {  // Clamp to size of byte buffer
-                    bytesToLoad = FRAME_BYTE_BUFFER_SIZE;
+        /*if (!(frameHeader & 64)) {
+            //for (j = 0; j < lineCount; j++) {
+                //Initialize registers
+            asm("LD    hl, $D40000\n"
+                "LD    bc, 320 * 240 * 2 - 2\n"
+                "PUSH  hl\n"
+                "POP   de\n"
+                // Write initial 2 - byte value
+                "LD(hl), 31\n"
+                "INC   hl\n"
+                "LD(hl), 0\n"
+                "INC   hl\n"
+                "EX    de, hl\n"
+                //Copy everything all at once.Interrupts may trigger while this instruction is processing.
+                "DI\n"
+                "LDIR\n"
+                "EI\n");*/
+
+                // Load more data if nessecary
+                /*if(remainingFrameBytes < 1) {
+
+                    // Calculate how many bytes to load: Frame sizes will not fit into multiples of the frame byte buffer size, and we don't want to read data from the next frame because that messes up the seek cursor pos
+                    uint16_t bytesToLoad = lineCount - j;
+                    if(bytesToLoad > FRAME_BYTE_BUFFER_SIZE) {  // Clamp to size of byte buffer
+                        bytesToLoad = FRAME_BYTE_BUFFER_SIZE;
+                    }
+
+                    ti_Read(&frame, FRAME_BYTE_BUFFER_SIZE, 1, LLV_FILE);
+                    remainingFrameBytes = bytesToLoad;  // Keep track of how many bytes are loaded.
+                }*/
+
+                //line = frame[j];
+                /*line = frame[j];
+
+
+                remainingLength = LCD_WIDTH - x;
+
+                if (remainingLength < line) {
+                    // line for remainingLength
+                    //gfx_FillRectangle(x, y, remainingLength, VERT_SCALE);
+                    gfx_HorizLine_NoClip(x, y, remainingLength);
+
+                    // line for line - remainingLength on next line
+                    //gfx_FillRectangle(0, y + VERT_SCALE, line - remainingLength, VERT_SCALE);
+                    gfx_HorizLine_NoClip(0, y + VERT_SCALE, line - remainingLength);
+
+                    // loop x and +1 to y
+                    x = line - remainingLength;
+                    y += VERT_SCALE;
+                }
+                else {
+                    // line for line
+                    //gfx_FillRectangle(x, y, line, VERT_SCALE);
+                    gfx_HorizLine_NoClip(x, y, line);
+
+                    // increase x offset by length of line
+                    x += line;
                 }
 
-                ti_Read(&frame, FRAME_BYTE_BUFFER_SIZE, 1, LLV_FILE);
-                remainingFrameBytes = bytesToLoad;  // Keep track of how many bytes are loaded.
-            }*/
+                if (line != 255) {                                // Swap color, unless line length was exactly 255 (0xFF). This is to allow contiguous sections of the same color longer than 255.
+                    color = gfx_SetColor(color); // To display a line of length 255, encode it as a 255 length line (0xFF) followed by a 0 length line (0x00).
+                }
 
-            //line = frame[j];
+                // DEBUG: debug var display
+                /*tempColor = gfx_SetColor(74);
+                gfx_FillRectangle(0, 200, 64, 40);
+                gfx_SetTextXY(0, 200);
+                gfx_PrintUInt(lineCount, 16);
+                gfx_SetTextXY(0, 208);
+                gfx_PrintUInt(j, 16);
+                gfx_SetTextXY(0, 216);
+                gfx_PrintUInt(line, 8);
+                gfx_SetTextXY(0, 224);
+                gfx_PrintUInt(x, 8);
+                gfx_SetTextXY(0, 232);
+                gfx_PrintInt(y, 8);
+                gfx_SetColor(tempColor);*/
+
+                //remainingFrameBytes--;
+            //}
+            /*}
+            else {*/
+
+        for (j = 0; j < lineCount; j++) {
+
             line = frame[j];
 
-            remainingWidth = LCD_WIDTH - x;
+            // Inline asm code to draw a single line to vRam quickly.
+            // org D1B32A (unless any C code above this gets modified)
+            asm("AND   A, 0\n"                  // AND A with 0 to set A to 0, because you can't just load a value directly into it :/
+                "SUB   A, (IX+-22)\n"           // Check if the line length is 0
+                "JR    Z, skip_ASM\n"           // If zero, jump past all this inline asm (we don't want to draw a line of 0, that underflows BC & fills past vRam)
+                "LD    HL, (IX+-38)\n"          // starting location (location of vram + x)
+                //"LD  bc, (IX+-24)\n"//320 * 240 * 2 - 2\n" // number of pixels to copy
+                "LD    bc, 0x000000\n"//    zero out BCU
+                "LD    c, (IX+-22)\n"// (IX+-24)    copy line byte
+                "PUSH  hl\n"                    // Copy hl to de
+                "POP   de\n"
+                // Write initial 2-byte value
+                "LD    A,(IX+-10)\n"            // Load color into screen pixel
+                "LD    (HL),A\n"
+                "INC   hl\n"
+                /*"LD(hl), 69\n"                // load 0x69 into the address pointed to by hl (vram)
+                "INC   hl\n"                    // increment the address that hl points to
+                "LD(hl), 0\n"                   // load 0x00 into the address pointed to by hl
+                "INC   hl\n"                    // increment that adress*/
+                "EX    de, hl\n"                // swap de & hl
+                //Copy everything all at once. Interrupts may trigger while this instruction is processing.
+                //"DI\n"
+                "LDIR\n"                        // fancy-shmancy instruction that loops until bc == 0x00, copying (de) & (hl) to (de+2) & (hl+2)
+                "LD    (IX+-38), HL\n"
+                "skip_ASM:\n"
+                //"EI\n"
+                "LD  A, (IX + -22)\n"           // Restore A register from before this code (is set by other stuff idk but hope this works)
+            );
+            /*line = frame[j];
 
-            if (remainingWidth < line) {
-                // line for remainingWidth
-                //gfx_FillRectangle(x, y, remainingWidth, VERT_SCALE);
-                gfx_HorizLine_NoClip(x, y, remainingWidth);
+            remainingLength = LCD_HEIGHT - y;
 
-                // line for line - remainingWidth on next line
-                //gfx_FillRectangle(0, y + VERT_SCALE, line - remainingWidth, VERT_SCALE);
-                gfx_HorizLine_NoClip(0, y + VERT_SCALE, line - remainingWidth);
+            if (remainingLength < line) {
+                gfx_VertLine_NoClip(x, y, remainingLength);
+                if (line - remainingLength > LCD_HEIGHT) {
+                    gfx_VertLine_NoClip(x + HORIZ_SCALE, 0, LCD_HEIGHT);
+                    gfx_VertLine_NoClip(x + 2 * HORIZ_SCALE, 0, line - remainingLength - LCD_HEIGHT);
+                    y = line - remainingLength - LCD_HEIGHT;
+                    x += HORIZ_SCALE;
+                }
+                else {
+                    gfx_VertLine_NoClip(x + HORIZ_SCALE, 0, line - remainingLength);
+                    y = line - remainingLength;
+                }
 
-                // loop x and +1 to y
-                x = line - remainingWidth;
-                y += VERT_SCALE;
+                // +1 to x
+                x += HORIZ_SCALE;
             }
             else {
-                // line for line
-                //gfx_FillRectangle(x, y, line, VERT_SCALE);
-                gfx_HorizLine_NoClip(x, y, line);
+                gfx_VertLine_NoClip(x, y, line);
 
-                // increase x offset by length of line
-                x += line;
+                // increase y offset by length of line
+                y += line;
+            }*/
+
+            if (line != 255) {              // Swap color unless 0xFF
+                color = gfx_SetColor(color);
             }
-
-            if (line != 255) {                                // Swap color, unless line length was exactly 255 (0xFF). This is to allow contiguous sections of the same color longer than 255.
-                color = gfx_SetColor(color); // To display a line of length 255, encode it as a 255 length line (0xFF) followed by a 0 length line (0x00).
-            }
-
-            // DEBUG: debug var display
-            /*tempColor = gfx_SetColor(74);
-            gfx_FillRectangle(0, 200, 64, 40);
-            gfx_SetTextXY(0, 200);
-            gfx_PrintUInt(lineCount, 16);
-            gfx_SetTextXY(0, 208);
-            gfx_PrintUInt(j, 16);
-            gfx_SetTextXY(0, 216);
-            gfx_PrintUInt(line, 8);
-            gfx_SetTextXY(0, 224);
-            gfx_PrintUInt(x, 8);
-            gfx_SetTextXY(0, 232);
-            gfx_PrintInt(y, 8);
-            gfx_SetColor(tempColor);*/
-
-            //remainingFrameBytes--;
         }
+        //}
 
         /*tempColor = gfx_SetColor(74);
         gfx_FillRectangle(0, 200, 64, 40);

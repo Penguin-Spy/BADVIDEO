@@ -20,7 +20,7 @@ def save8xv(outFile, outBytes):
     outFile.write(outBytes)
     print("Wrote ", len(outBytes), " bytes to ", outFile.name)
     outFile.close()
-    os.system('make ' + str(outFile.name).replace('.bin', '.8xv'))
+    os.system('@make ' + str(outFile.name).replace('.bin', '.8xv'))
     os.remove(outFile.name)  # Remove intermediate .bin file
 
 
@@ -82,13 +82,18 @@ while(True):
         # img.save(''+str(frameTotal) + "c.png")
 
         pixels = img.load()  # this is not a list, nor is it list()'able
-        color = pixels[0, 0]
         width, height = img.size
+        color = pixels[0, 0]
 
-        frameBytes = bytes()
+        frameHeader = 0b10000000 * (color == 0)  # Starting color (1 = black)
+
+        horizontalFrameBytes = bytes()
+        verticalFrameBytes = bytes()
         currentLineLength = -1  # Start at -1 so that we enter the first pixel at line length 0
-        lineCount = 0
+        horizontalLineCount = 0
+        verticalLineCount = 0
 
+        # Compress horizontally
         for r in range(height):
             for c in range(width):
                 cpixel = pixels[c, r]
@@ -97,22 +102,66 @@ while(True):
 
                 # By running both of these checks independently and in this order, we get the desired behavior for lines of exactly 255 (0xFF followed by 0x00).
                 if currentLineLength > 254:     # If we're out of space in this byte, move onto the next one.
-                    frameBytes += bytes([currentLineLength])
-                    lineCount += 1
+                    horizontalFrameBytes += bytes([currentLineLength])
+                    horizontalLineCount += 1
                     currentLineLength = 0
                 if not(cpixel == color):        # If the color changed from last pixel
-                    frameBytes += bytes([currentLineLength])
-                    lineCount += 1
+                    horizontalFrameBytes += bytes([currentLineLength])
+                    horizontalLineCount += 1
                     currentLineLength = 0
                     color = cpixel
 
         # Save the last line
         # currentLineLength is incremented at beginning of loop, so when we exit we're one pixel behind
-        frameBytes += bytes([currentLineLength + 1])
-        lineCount += 1
+        horizontalFrameBytes += bytes([currentLineLength + 1])
+        horizontalLineCount += 1
+
+        currentLineLength = -1  # Start at -1 so that we enter the first pixel at line length 0
+        color = pixels[0, 0]
+
+        # Compress vertically
+        for c in range(width):
+            for r in range(height):
+                cpixel = pixels[c, r]
+
+                currentLineLength = currentLineLength + 1
+
+                # By running both of these checks independently and in this order, we get the desired behavior for lines of exactly 255 (0xFF followed by 0x00).
+                if currentLineLength > 254:     # If we're out of space in this byte, move onto the next one.
+                    verticalFrameBytes += bytes([currentLineLength])
+                    verticalLineCount += 1
+                    currentLineLength = 0
+                if not(cpixel == color):        # If the color changed from last pixel
+                    verticalFrameBytes += bytes([currentLineLength])
+                    verticalLineCount += 1
+                    currentLineLength = 0
+                    color = cpixel
+
+        # Save the last line
+        # currentLineLength is incremented at beginning of loop, so when we exit we're one pixel behind
+        verticalFrameBytes += bytes([currentLineLength + 1])
+        verticalLineCount += 1
+
+        # Comparison of file sizes with different directions:
+        # Direction | #files | last size | max frame size
+        # Horizontal    04        2,875      1063 bytes
+        # Vertical      03       40,075      1492 bytes
+        # Lowest of ↑   03       28,993      1063 bytes  -  this is the one that gets used
+        # Highest lol   04       14,066      1492 bytes
+        if (len(horizontalFrameBytes) < len(verticalFrameBytes)):
+            frameBytes = horizontalFrameBytes
+            lineCount = horizontalLineCount
+        else:
+            frameBytes = verticalFrameBytes
+            lineCount = verticalLineCount
+            frameHeader += 0b01000000   # Compression direction (1 = vertical)
+        # assign to frameBytes
+        # set bit in header
+        # update calc program to read it
+        # but not before seeing how bad it looks when we don't decode in the right direction
 
         # Frame Header & This is how the TI-84 stores 16 bit ints, so thats how we store it.
-        frameBytes = bytes([(pixels[0, 0] == 0) * 0x80]) + lineCount.to_bytes(2, 'little') + frameBytes
+        frameBytes = bytes([frameHeader]) + lineCount.to_bytes(2, 'little') + frameBytes
 
         if (len(frameBytes) > maxFrameSize):
             maxFrameSize = len(frameBytes)
@@ -146,7 +195,7 @@ while(True):
         print("End of video reached.")
         break
 
-    if(frameTotal > 2000):
+    if(frameTotal > 1000):
         break
 
 if (len(videoBytes) > 0):  # There is still a file left to save
