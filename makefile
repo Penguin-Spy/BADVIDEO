@@ -48,6 +48,7 @@ $(VIDEOBINDIR)/%.8xv: $(VIDEOSRCDIR)/%.mp4
 
 
 %: $(VIDEOBINDIR)/%.8xv
+	$(Q)echo Created video $@
 
 cleanvideo:
 	$(Q)$(RM) $(VIDEOBINDIR)/*.bin
@@ -56,4 +57,4 @@ cleanvideo:
 .PRECIOUS: $(VIDEOBINDIR)/%.bin
 .PRECIOUS: $(VIDEOBINDIR)/%.8xv
 
-.PHONY: cleanvideo
+.PHONY: rmvideo
