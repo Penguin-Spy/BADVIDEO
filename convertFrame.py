@@ -42,15 +42,18 @@ if (title == None):
     title = "unknown"
 
 headerBytes = bytes("LLVH", "ascii")
-headerBytes += bytes([0b00000000])        # Version (0=debug)
+headerBytes += bytes([0b00000000])   # Version (0=debug)
 headerBytes += bytes([0b01000000])   # Features (0 - Captions; 1 - Sound; 2-7 Reserved, should be zeros.)
 headerBytes += bytes([0b00000101])   # FPS
-headerBytes += len(title).to_bytes(1, 'big')  # Title length
 try:
-    headerBytes += bytes(title, "ascii")  # Title
+    titleBytes = bytes(title, "ascii")  # Title
 except Exception:
     print("[Warning]: Title could not be encoded via ascii. Setting to default: 'unknown'")
     title = "unknown"
+
+titleBytes = bytes(title, "ascii")  # Title
+headerBytes += len(title).to_bytes(1, 'big')  # Title length
+headerBytes += titleBytes
 # captionCount
 # *captions
 
@@ -195,7 +198,7 @@ while(True):
         print("End of video reached.")
         break
 
-    if(frameTotal > 1000):
+    if(frameTotal > 500):
         break
 
 if (len(videoBytes) > 0):  # There is still a file left to save
