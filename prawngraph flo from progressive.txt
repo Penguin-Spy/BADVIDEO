@@ -1,0 +1,32 @@
+chunk:
+    uint16_t    numOfBytes
+    uint8_t     bytes[]
+
+
+can be split over multiple files
+
+
+
+
+chunkBuffer = buffer containing the current chunk
+
+PRONGRAM FLO:
+
+read next chunk {
+    read length of chunk
+    if chunk fits into currently open file
+        read all of into the buffer
+    else
+        read what's left into the buffer
+        save how much we read
+        close file & open next one
+        read the rest into the buffer where we left off
+
+    display chunk {
+        read frame info from header
+        display frame
+        if more frames left in chunk, loop
+    }
+
+    if more frames left in file, loop
+}

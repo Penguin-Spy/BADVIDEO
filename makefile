@@ -44,7 +44,7 @@ $(VIDEOBINDIR)/%.8xv: $(VIDEOBINDIR)/%.bin
 
 $(VIDEOBINDIR)/%.8xv: $(VIDEOSRCDIR)/%.mp4
 	$(Q)echo Converting $^ to $@
-	$(Q)py convertFrame.py $^ $(VIDEOBINDIR) $(basename $(notdir $@))
+	$(Q)py tools/convertFrame.py $^ $(VIDEOBINDIR) $(basename $(notdir $@))
 
 
 %: $(VIDEOBINDIR)/%.8xv
@@ -53,8 +53,11 @@ $(VIDEOBINDIR)/%.8xv: $(VIDEOSRCDIR)/%.mp4
 cleanvideo:
 	$(Q)$(RM) $(VIDEOBINDIR)/*.bin
 	$(Q)$(RM) $(VIDEOBINDIR)/*.8xv
+	$(Q)$(RM) temp.bin.zx7
+
+.INTERMEDIATE: temp.bin temp.bin.zx7
 
 .PRECIOUS: $(VIDEOBINDIR)/%.bin
 .PRECIOUS: $(VIDEOBINDIR)/%.8xv
 
-.PHONY: rmvideo
+.PHONY: cleanvideo

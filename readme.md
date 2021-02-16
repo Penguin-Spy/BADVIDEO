@@ -8,7 +8,7 @@ USE AT YOUR OWN RISK! I AM NOT RESPONSIBLE FOR ANY CORRUPTIONS/ERRORS THAT ARISE
 
 The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/video/`. All files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 99`) are required for the video to play in full.
 
-A tool to convert a video file (uses OpenCV, I've tested with .mp4) to a collection of AppVars can be found in the root directory as `convertFrame.py`. Usage is as follows:
+A tool to convert a video file (uses OpenCV, I've tested with .mp4) to a collection of AppVars can be found in `tools/convertFrame.py`. Usage is as follows:
 ```
 convertFrame.py <input video file> <output directory> <AppVar name (1-8 chars)>
 ```

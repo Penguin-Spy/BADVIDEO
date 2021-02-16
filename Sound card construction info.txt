@@ -1,0 +1,23 @@
+FT260 Pin defaults:
+DIO1	GPIOB
+DIO2	GPIOE
+DIO3	GPIOC (w/ no UART)
+DIO4	GPIOD (w/ no UART)
+
+DIO9	GPIOF
+DIO10	GPIO4
+DIO11	GPIO5
+
+DIO13	GPIOH
+
+To disable UART and use DIO3/4 as GPIO pins, the chip should be configured with
+DCNF1	Low
+DCNF0	High (Only I²C enabled)
+On the UMFT260EV1A, this means JP7-1 connected to JP7-2 (i think), meaning: JP7 VCCIO(power) to DCNF0
+
+
+DIO5/6 can be used as GPIO if I²C is disabled using USB commands (alternate solution if UART is hard to disable)
+
+USB control pipe is used to get/set direction/pin status
+i.e. HID SET_REPORT & GET_REPORT
+
