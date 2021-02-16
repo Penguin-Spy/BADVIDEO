@@ -248,7 +248,7 @@ while(True):
     else:
         print("End of video reached.")
         break
-    if(frameTotal > 127):
+    if(frameTotal > 191):
         break
 
 # Finish up loop operations that normally would wait for a condition to be true

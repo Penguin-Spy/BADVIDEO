@@ -17,6 +17,11 @@
 #include <C:/CEdev/include/stdint.h>
 #include <C:/CEdev/BADVIDEO/src/decompression_test.c>
 
+#define DEBUG 0   // 0 = no debug, 1 = chunk header, 2 = chunk buffer, 3 = frame header, 4 = frame buffer (& pause on every frame)
+#define ZX7_DELTA 3
+#define ZX7_BUFFER_SIZE 6474 + ZX7_DELTA
+#define FRAMES_PER_CHUNK 8
+
 //#include <src/renderFrame.h>
 //#include <src/renderFrame.asm>
 
@@ -207,11 +212,8 @@ int main(void) {
     uint16_t y;
     uint8_t  VERT_SCALE = 1;
     uint8_t  HORIZ_SCALE = 1;
-    uint8_t  chunkDelta = 3;
     uint8_t* chunkBuffer;       // Buffer for storing chunk data
-    //uint8_t* decompBuffer;      // Buffer for storing uncompressed chunk data
-    uint16_t CHUNK_BUFFER_SIZE = 2443;//5854 + chunkDelta;
-    //uint16_t DECOMP_BUFFER_SIZE = 5854;
+    //uint8_t* decompBuffer;    // Buffer for storing uncompressed chunk data
     uint16_t remainingLength;
     uint8_t  remainingFrameBytes;
 
@@ -225,7 +227,13 @@ int main(void) {
 
     gfx_Begin(); // Initalize graphics
 
-    chunkBuffer = malloc(CHUNK_BUFFER_SIZE);
+    chunkBuffer = malloc(ZX7_BUFFER_SIZE);
+    if (chunkBuffer == NULL) {
+        gfx_PrintString("malloc fail");
+        while (!os_GetCSC());
+        gfx_End();
+        return -1;
+    }
 
 select:
     // Close any files that may be open already
@@ -359,44 +367,50 @@ skip_open:
 
         // Read compressed length of chunk
         ti_Read(&chunkByteCount, 2, 1, LLV_FILE);
+#if DEBUG > 0
         gfx_FillScreen(74);
-        gfx_SetTextXY(0, 8);
+        gfx_SetTextXY(0, 0);
         gfx_PrintUInt(chunkByteCount, 8);
         while (!(key = os_GetCSC()));
 
         if (key == sk_Clear) {
             return 0;
         }
+#endif
 
         // Read chunk into the buffer, aligned to the end
-        ti_Read(&chunkBuffer[CHUNK_BUFFER_SIZE - chunkByteCount], chunkByteCount, 1, LLV_FILE);
+        ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], chunkByteCount, 1, LLV_FILE);
+#if DEBUG > 1
         gfx_FillScreen(74);
-        printBuffer(&chunkBuffer[CHUNK_BUFFER_SIZE - chunkByteCount], chunkByteCount);
+        printBuffer(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], chunkByteCount);
         while (!(key = os_GetCSC()));
 
         if (key == sk_Clear) {
             return 0;
         }
+#endif
 
         // Decode chunk into the beginning of the buffer
-        zx7_Decompress(&chunkBuffer, &chunkBuffer[CHUNK_BUFFER_SIZE - chunkByteCount]);
+        zx7_Decompress(chunkBuffer, &chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount]);
         chunkHeadPointer = 0;
+#if DEBUG > 1
         gfx_FillScreen(74);
-        printBuffer(chunkBuffer, CHUNK_BUFFER_SIZE);
+        printBuffer(chunkBuffer, ZX7_BUFFER_SIZE);
         while (!(key = os_GetCSC()));
 
         if (key == sk_Clear) {
             return 0;
         }
+#endif
 
-        for (i = 0; i < 8; i++) {
-
-            //gfx_FillScreen(74);
+        for (i = 0; i < FRAMES_PER_CHUNK; i++) {
 
             frameHeader = chunkBuffer[chunkHeadPointer];
-            lineCount = (chunkBuffer[chunkHeadPointer + 1] << 8) + chunkBuffer[chunkHeadPointer] + 1;
-            chunkHeadPointer += 3;
+            chunkHeadPointer += 1;
+            lineCount = (chunkBuffer[chunkHeadPointer + 1] << 8) + chunkBuffer[chunkHeadPointer];
+            chunkHeadPointer += 2;
 
+#if DEBUG > 2
             gfx_FillScreen(74);
             gfx_SetTextXY(0, 8);
             gfx_PrintUInt(frameHeader, 8);
@@ -405,26 +419,41 @@ skip_open:
             gfx_SetTextXY(0, 24);
             gfx_PrintUInt(i, 8);
             while (!(key = os_GetCSC()));
+
+            if (key == sk_Clear || lineCount > ZX7_BUFFER_SIZE) { // outdated safety exit conditions
+                gfx_End();
+                return 0;
+            }
+#endif
+#if DEBUG > 3
             gfx_FillScreen(74);
             printBuffer((chunkBuffer + chunkHeadPointer), lineCount);
             while (!(key = os_GetCSC()));
+
+            if (key == sk_Clear || lineCount > ZX7_BUFFER_SIZE) { // outdated safety exit conditions
+                gfx_End();
+                return 0;
+            }
+#endif
 
             // draw (320x240)
             //x = 0xD40000;       // start of vRam, set here because it's used in later ASM and easier to just assign now
             hlSave = 0xD40000;
             y = 0;
 
-            if (frameHeader & 128 && color != 0x00) { // If 1st bit set, start with white (check for black because color is opposite of actual set color)
+            if (frameHeader & 128) { // If 1st bit set, start with white (check for black because color is opposite of actual set color)
                 color = 0x00;
                 gfx_SetColor(0xFF); // Setup color swapping
             }
-
-            if (key == sk_Clear || lineCount > CHUNK_BUFFER_SIZE) { // outdated safety exit conditions
-                return 0;
+            else {                  // This can likely be optimized, just a quick fix
+                color = 0xFF;
+                gfx_SetColor(0x00); // Setup color swapping
             }
 
             renderFrame((chunkBuffer + chunkHeadPointer), lineCount);
+#if DEBUG > 3
             while (!(key = os_GetCSC()));
+#endif
             chunkHeadPointer += lineCount;
 
             remainingFrames--;

@@ -42,7 +42,7 @@ void printBuffer(uint8_t* buffer, uint16_t size) {
         }
     }
 }
-
+/*
 int mainb(void) {
     uint8_t compBuffer[] = { 0x54, 0x00, 0x45, 0x53, 0x54, 0x20, 0x46, 0x49, 0x4C, 0x45, 0x10, 0x3A, 0x20, 0x65, 0x6A, 0x00, 0x20, 0x00, 0x2D, 0x20, 0x6C, 0x6F, 0x6C, 0x20, 0x2F, 0x2E, 0x20, 0x5C, 0x00, 0x00, 0x10 };
     uint8_t decompBuffer[100];
@@ -73,7 +73,7 @@ int mainb(void) {
     fileSize -= 4;
     ti_Seek(4, SEEK_SET, file);
 
-    while (!os_GetCSC());*/
+    while (!os_GetCSC());*//*
 
     gfx_Begin();
     gfx_FillScreen(74);
@@ -116,4 +116,4 @@ int mainb(void) {
     gfx_End();
 
     return 0;
-}
+}*/
