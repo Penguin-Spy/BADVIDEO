@@ -15,6 +15,10 @@ import cv2
 import sys
 import os
 
+maxFrameSize = 0  # Size of the largest frame
+maxUncompressedChunk = 0  # Size of the largest uncompressed chunk
+maxDelta = 0  # Maximum delta (distance between uncompressing data into it's own buffer)
+
 
 def encodeFrame(frame):
     # Convert to PIL & encode as LLV
@@ -108,6 +112,8 @@ def encodeFrame(frame):
 
 
 def compressBytes(uncompressedBytes):
+    global maxUncompressedChunk
+    global maxDelta
     try:
         os.remove("temp.bin.zx7")
     except FileNotFoundError:
@@ -115,7 +121,12 @@ def compressBytes(uncompressedBytes):
     uncompressedFile = open("temp.bin", 'wb')
     uncompressedFile.write(uncompressedBytes)
     uncompressedFile.close()
-    os.system('@"tools/zx7.exe" temp.bin')
+    out = os.popen('@"tools/zx7.exe" temp.bin').read().split(" ")
+    if (maxUncompressedChunk < int(out[9])):
+        maxUncompressedChunk = int(out[9])
+    # out[12]
+    if (maxDelta < int(out[14].replace(")", ""))):
+        maxDelta = int(out[14].replace(")", ""))
     compressedFile = open("temp.bin.zx7", 'rb')
     compressedBytes = compressedFile.read()
     compressedBytes = len(compressedBytes).to_bytes(2, 'little') + compressedBytes
@@ -145,13 +156,13 @@ inputVideoTag = TinyTag.get(inputPath)
 # title = "Bad Apple"
 title = inputVideoTag.title
 if (title == None):
-    print("[Warning]: Title is empty. Setting to default: 'unknown'")
     title = "unknown"
+    print(f'[Warning]: Title is empty. Setting to default: "{title}"')
 try:
     titleBytes = bytes(title, "ascii")  # Title
 except Exception:
-    print("[Warning]: Title could not be encoded via ascii. Setting to default: 'unknown'")
     title = "unknown"
+    print(f'[Warning]: Title could not be encoded via ascii. Setting to default: "{title}"')
 
 headerBytes = bytes("LLVH", "ascii")
 headerBytes += bytes([0b00000000])   # Version (0=debug)
@@ -167,7 +178,6 @@ headerBytes += titleBytes
 frameTotal = 0  # Overall total frames in the entire video
 repeatedFrames = 0  # How many frames in a row were identical
 fileIndex = 0  # Which file is this
-maxFrameSize = 0  # Size of the largest frame
 
 unCVideoBytes = bytes()  # Uncompressed video bytes
 cVideoBytes = bytes()   # Compressed video bytes
@@ -248,7 +258,7 @@ while(True):
     else:
         print("End of video reached.")
         break
-    if(frameTotal > 191):
+    if(frameTotal > 4096):
         break
 
 # Finish up loop operations that normally would wait for a condition to be true
@@ -266,12 +276,13 @@ print(unCVideoBytes)
 
 headerBytes += frameTotal.to_bytes(2, 'little')
 
-# TODO: parse output text of zx7.exe & save delta & max buffer size to headers
+# TODO: parse output text of zx7.exe & save delta & max buffer size to headers/stdout
 
 finalSize = len(headerBytes) + len(cVideoBytes)
 
 # Write the first file with the file header
-save8xv(f"{outputPath}{varName}.bin", headerBytes + cVideoBytes[0:65232])
+cVideoBytes = headerBytes + cVideoBytes
+save8xv(f"{outputPath}{varName}.bin", cVideoBytes[0:65232])
 cVideoBytes = cVideoBytes[65232:]  # Remove what we just wrote
 
 # If there's more to write
@@ -298,5 +309,6 @@ while (len(cVideoBytes) > 0):
 # outputBinFirst.write(videoBytesFirst)
 # os.system('make ' + str(outputBinFirst.name).replace('.bin', '.8xv'))
 
-print(f"Converted {inputPath} to {outputPath}{varName}.8xp with {fileIndex + 1} files ({finalSize} bytes in total).\
-      \nThe largest single frame was {maxFrameSize} lines ({maxFrameSize + 3} bytes).")
+print(f"Converted {inputPath} to {outputPath}{varName}.8xp with {fileIndex + 1} files ({finalSize} bytes in total).\n" +
+      f"The largest single frame was {maxFrameSize} lines ({maxFrameSize + 3} bytes).\n" +
+      f"The largest uncompressed chunk was {maxUncompressedChunk} bytes, and the largest decompression delta is {maxDelta} bytes.")

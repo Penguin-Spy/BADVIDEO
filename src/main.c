@@ -18,8 +18,8 @@
 #include <C:/CEdev/BADVIDEO/src/decompression_test.c>
 
 #define DEBUG 0   // 0 = no debug, 1 = chunk header, 2 = chunk buffer, 3 = frame header, 4 = frame buffer (& pause on every frame)
-#define ZX7_DELTA 3
-#define ZX7_BUFFER_SIZE 6474 + ZX7_DELTA
+#define ZX7_DELTA 12
+#define ZX7_BUFFER_SIZE 22055 + ZX7_DELTA
 #define FRAMES_PER_CHUNK 8
 
 //#include <src/renderFrame.h>
@@ -216,6 +216,8 @@ int main(void) {
     //uint8_t* decompBuffer;    // Buffer for storing uncompressed chunk data
     uint16_t remainingLength;
     uint8_t  remainingFrameBytes;
+    uint16_t readFileSize;
+    uint8_t  headerSize;
 
     uint16_t remainingFrames;
     uint8_t  frameCount;        // More than 255 frames cannot physically fit into 64KiB (min frame size is 305, so 214.8 frames can fit)
@@ -292,6 +294,9 @@ select:
             break;
     }
 
+    //           LLVH, Header, Title string,       frameTotal
+    headerSize = 4 + 4 + LLVH_header.titleLength + 2;
+
     key = 0;
     if (numFound == 0) {
         gfx_SetTextXY(10, 0);
@@ -340,46 +345,87 @@ select:
     LLV_FILE = ti_Open(fileNames[h], "r");
     fileNames[h][6] = '0';
     fileNames[h][7] = '0';
+    //remainingFileSize = ti_GetSize(LLV_FILE) - headerSize;
 
     // Seek to the beginning of the frame data
-    //      LLVH, Header, Title string,       frameTotal     frameCount
-    ti_Seek(4 + 4 + LLVH_header.titleLength + 2, SEEK_SET, LLV_FILE);
+    ti_Seek(headerSize, SEEK_SET, LLV_FILE);
 
     //gfx_SetDrawBuffer(); // Enable buffering (because the screen is fully redrawn each frame)
-
-    goto skip_open;
-open:
-    // Open the selected file.
-
-    //TODO: read filenames properly
-    LLV_FILE = ti_Open(fileNames[h], "r");
-    fileNames[h][7]++;
-    if (fileNames[h][7] == ':') {
-        fileNames[h][6]++;
-        fileNames[h][7] = '0';
-    }
-
-    //LLV_SIZE = ti_GetSize(LLV_FILE);
-
-skip_open:
 
     while (remainingFrames > 0) {
 
         // Read compressed length of chunk
         ti_Read(&chunkByteCount, 2, 1, LLV_FILE);
+        //remainingFileSize -= 2;
+        //chunkByteCount = 2048;
 #if DEBUG > 0
         gfx_FillScreen(74);
         gfx_SetTextXY(0, 0);
         gfx_PrintUInt(chunkByteCount, 8);
+        /*gfx_SetTextXY(0, 8);
+        gfx_PrintUInt(remainingFileSize, 8);*/
         while (!(key = os_GetCSC()));
 
         if (key == sk_Clear) {
             return 0;
         }
 #endif
+        memset(chunkBuffer, 0x00, ZX7_BUFFER_SIZE);
 
         // Read chunk into the buffer, aligned to the end
-        ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], chunkByteCount, 1, LLV_FILE);
+        //Read as much as we can from this file
+        readFileSize = ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], 1, chunkByteCount, LLV_FILE);
+
+        if (readFileSize < chunkByteCount) { // If we didn't read the entire chunk from that file
+            ti_Close(LLV_FILE);     // Close it & open the next
+            LLV_FILE = ti_Open(fileNames[h], "r");
+            fileNames[h][7]++;
+            if (fileNames[h][7] == ':') {
+                fileNames[h][6]++;
+                fileNames[h][7] = '0';
+            }
+            // Read however much we still need to from the next file
+            ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount + readFileSize], chunkByteCount - readFileSize, 1, LLV_FILE);
+        }
+        /*
+        if (remainingFileSize > chunkByteCount) {
+#if DEBUG > 0
+            gfx_PrintString("uno");
+            while (!os_GetCSC());
+#endif
+            // say which branch we take here
+            // figure out stuff from there
+            // data isn't being read/read into entirely the wrong location
+            // because buffer is mostly empty & looks uninitalized/unwritten to
+            ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], chunkByteCount, 1, LLV_FILE);
+            remainingFileSize -= chunkByteCount;
+        }
+        else {
+#if DEBUG > 0
+            gfx_PrintString("dos");
+            while (!os_GetCSC());
+#endif
+            // Read whatevers left in this file
+            gfx_PrintUInt(ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], 1, remainingFileSize, LLV_FILE), 8);
+            while (!os_GetCSC());
+            ti_Close(LLV_FILE);     // Close it & open the next
+            LLV_FILE = ti_Open(fileNames[h], "r");
+            fileNames[h][7]++;
+            if (fileNames[h][7] == ':') {
+                fileNames[h][6]++;
+                fileNames[h][7] = '0';
+            }
+            // Read however much we still need to from the next file
+            ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount + remainingFileSize], chunkByteCount - remainingFileSize, 1, LLV_FILE);
+            remainingFileSize = ti_GetSize(LLV_FILE);
+            /*gfx_FillScreen(74);
+            printBuffer(chunkBuffer, ZX7_BUFFER_SIZE);
+            while (!(key = os_GetCSC()));
+
+            if (key == sk_Clear) {
+                return 0;
+            }*//*
+        }*/
 #if DEBUG > 1
         gfx_FillScreen(74);
         printBuffer(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], chunkByteCount);
@@ -452,7 +498,7 @@ skip_open:
 
             renderFrame((chunkBuffer + chunkHeadPointer), lineCount);
 #if DEBUG > 3
-            while (!(key = os_GetCSC()));
+            while (!os_GetCSC());
 #endif
             chunkHeadPointer += lineCount;
 
