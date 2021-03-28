@@ -14,13 +14,23 @@
 #include <fileioc.h>
 #include <stdlib.h>
 #include <compression.h>
-#include <C:/CEdev/include/stdint.h>
-#include <C:/CEdev/BADVIDEO/src/decompression_test.c>
+#include <keypadc.h>
+#include <C:/CEdev/include/stdint.h>    // makes VS Code not whine about uint24_t
+//#include <C:/CEdev/BADVIDEO/src/decompression_test.c>
 
 #define DEBUG 0   // 0 = no debug, 1 = chunk header, 2 = chunk buffer, 3 = frame header, 4 = frame buffer (& pause on every frame)
 #define ZX7_DELTA 12
 #define ZX7_BUFFER_SIZE 22055 + ZX7_DELTA
 #define FRAMES_PER_CHUNK 8
+
+// is this dumb? probably but idc
+#define KEYS_CONFIRM ((kb_Data[6] & kb_Enter) || (kb_Data[1] & kb_2nd))
+#define KEYS_CANCEL (kb_Data[6] & kb_Clear)
+#define KEYS_SKIP (kb_Data[7] & kb_Right)
+
+#define COLOR_BLACK 0x00
+#define COLOR_WHITE 0xFF
+#define COLOR_BACKGROUND 0x1E
 
 //#include <src/renderFrame.h>
 //#include <src/renderFrame.asm>
@@ -200,8 +210,6 @@ int main(void) {
     uint16_t LLV_SIZE;
 
     uint8_t  frameHeader;
-    uint8_t  key = 0;
-    uint8_t  tempColor = 0;
     char* var_name;
     uint8_t* search_pos;
     uint8_t  numFound;
@@ -227,22 +235,33 @@ int main(void) {
     uint16_t chunkHeadPointer;  // Where in the decompressed buffer we are at
     uint8_t compressionDelta = 2;
 
+    float FPS;  // calculated fps, is float because math? check the code that uses this below ↓
+
+    //start up a timer for FPS monitoring, do not move:
+    timer_Control = TIMER1_ENABLE | TIMER1_32K | TIMER1_UP;
+
+    // angery lettuce man says this is how to use keypad fastly:
+    kb_SetMode(MODE_3_CONTINUOUS);
+
     gfx_Begin(); // Initalize graphics
 
     chunkBuffer = malloc(ZX7_BUFFER_SIZE);
     if (chunkBuffer == NULL) {
         gfx_PrintString("malloc fail");
-        while (!os_GetCSC());
+        while (!os_GetCSC());   // we can use this here because we're about to exit anyways
         gfx_End();
         return -1;
     }
+
+
 
 select:
     // Close any files that may be open already
     ti_CloseAll();
 
-    gfx_SetColor(0xFF);
-    gfx_FillScreen(74);
+    kb_Scan();  // update keypad? idk if this needs to be done but jetpack joyride does it so
+
+    gfx_FillScreen(COLOR_BACKGROUND);
 
     search_pos = NULL;
     numFound = 0;
@@ -252,14 +271,13 @@ select:
         LLV_FILE = ti_Open(var_name, "r");
 
         // Read data
-        strcpy(LLVH_header.fileName, var_name);             // File name for printing
+        strcpy(LLVH_header.fileName, var_name);            // File name for printing
         strcpy(fileNames[numFound], var_name);             // File name saved for opening
         ti_Seek(4, SEEK_SET, LLV_FILE);                    // Seek past "LLVH" header
         ti_Read(&LLVH_header.fileName + 8, 4, 1, LLV_FILE); // Offsets 0-3
         LLVH_header.title = (char*)ti_MallocString(LLVH_header.titleLength);
         ti_Read(LLVH_header.title, 1, LLVH_header.titleLength, LLV_FILE); // Title String
-        if ((LLVH_header.features) & 128)
-        {                                                         // Captions exist
+        if ((LLVH_header.features) & 128) {                        // Captions exist
             ti_Read(&LLVH_header.captionCount, 2, 1, LLV_FILE);    // Number of captions
             ti_Seek(LLVH_header.captionCount, SEEK_CUR, LLV_FILE); // Seek pask the captions list
         }
@@ -268,14 +286,14 @@ select:
         // Print in list
         gfx_SetTextXY(10, numFound * 8);
         gfx_PrintString(LLVH_header.fileName);
-        /*gfx_SetTextXY(10+64+10, numFound*8);
-        gfx_PrintUInt(LLVH_header.version, 8);
-        gfx_SetTextXY(10+64+10+64+10, numFound*8);
-        gfx_PrintUInt(LLVH_header.features, 8);
-        gfx_SetTextXY(10+64+10+64+10+64+10, numFound*8);
-        gfx_PrintUInt(LLVH_header.fps, 3);*/
         gfx_SetTextXY(10 + 64 + 10, numFound * 8);
         gfx_PrintString(LLVH_header.title);
+        gfx_SetTextXY(10 + 64 + 10 + 64 + 10, numFound * 8);
+        gfx_PrintUInt(LLVH_header.fps, 3);
+        /*gfx_SetTextXY(10 + 64 + 10, numFound * 8);
+        gfx_PrintUInt(LLVH_header.version, 8);
+        gfx_SetTextXY(10 + 64 + 10 + 64 + 10, numFound * 8);
+        gfx_PrintUInt(LLVH_header.features, 8);*/
         /*gfx_SetTextXY(10, 8);
         gfx_PrintUInt(LLVH_header.version, 8);
         gfx_SetTextXY(10, 16);
@@ -297,23 +315,22 @@ select:
     //           LLVH, Header, Title string,       frameTotal
     headerSize = 4 + 4 + LLVH_header.titleLength + 2;
 
-    key = 0;
     if (numFound == 0) {
         gfx_SetTextXY(10, 0);
         gfx_PrintString("No videos found.");
-        while (!(os_GetCSC()));
-        key = sk_Clear;
+        while (!kb_AnyKey());
+        gfx_End();
+        return 0;
     }
 
     h = 0;
-    while (key != sk_Enter && key != sk_Clear) {
-        switch (key)
-        {
-        case sk_Up:
+    while (!KEYS_CONFIRM && !KEYS_CANCEL) {
+        switch (kb_Data[7]) {   //?
+        case kb_Up:
             if (h > 0)
                 h--;
             break;
-        case sk_Down:
+        case kb_Down:
             if (h < numFound - 1)
                 h++;
             break;
@@ -321,25 +338,25 @@ select:
         }
 
         // Draw selection carrot
-        tempColor = gfx_SetColor(74);
+        gfx_SetColor(COLOR_BACKGROUND);
         gfx_FillRectangle(0, 0, 10, 8 * numFound);
-        gfx_SetColor(tempColor);
+        gfx_SetColor(COLOR_BLACK);
         gfx_SetTextXY(0, h * 8);
         gfx_PrintString(">");
 
-        while (!(key = os_GetCSC()));
+        while (!kb_AnyKey());
     }
 
-    if (key == sk_Clear) {
+    if (kb_Data[6] & kb_Clear) {
         gfx_End(); // End graphics drawing
         return 0;
     }
 
     remainingFrames = LLVH_header.frameTotal;
-    gfx_FillScreen(74);
+    gfx_FillScreen(COLOR_BACKGROUND);
     gfx_SetTextXY(0, 8);
     gfx_PrintUInt(remainingFrames, 8);
-    while (!(key = os_GetCSC()));
+    while (!kb_AnyKey());
 
     //TODO: read filenames properly
     LLV_FILE = ti_Open(fileNames[h], "r");
@@ -359,7 +376,7 @@ select:
         //remainingFileSize -= 2;
         //chunkByteCount = 2048;
 #if DEBUG > 0
-        gfx_FillScreen(74);
+        gfx_FillScreen(COLOR_BACKGROUND);
         gfx_SetTextXY(0, 0);
         gfx_PrintUInt(chunkByteCount, 8);
         /*gfx_SetTextXY(0, 8);
@@ -418,7 +435,7 @@ select:
             // Read however much we still need to from the next file
             ti_Read(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount + remainingFileSize], chunkByteCount - remainingFileSize, 1, LLV_FILE);
             remainingFileSize = ti_GetSize(LLV_FILE);
-            /*gfx_FillScreen(74);
+            /*gfx_FillScreen(COLOR_BACKGROUND);
             printBuffer(chunkBuffer, ZX7_BUFFER_SIZE);
             while (!(key = os_GetCSC()));
 
@@ -427,7 +444,7 @@ select:
             }*//*
         }*/
 #if DEBUG > 1
-        gfx_FillScreen(74);
+        gfx_FillScreen(COLOR_BACKGROUND);
         printBuffer(&chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount], chunkByteCount);
         while (!(key = os_GetCSC()));
 
@@ -440,7 +457,7 @@ select:
         zx7_Decompress(chunkBuffer, &chunkBuffer[ZX7_BUFFER_SIZE - chunkByteCount]);
         chunkHeadPointer = 0;
 #if DEBUG > 1
-        gfx_FillScreen(74);
+        gfx_FillScreen(COLOR_BACKGROUND);
         printBuffer(chunkBuffer, ZX7_BUFFER_SIZE);
         while (!(key = os_GetCSC()));
 
@@ -457,7 +474,7 @@ select:
             chunkHeadPointer += 2;
 
 #if DEBUG > 2
-            gfx_FillScreen(74);
+            gfx_FillScreen(COLOR_BACKGROUND);
             gfx_SetTextXY(0, 8);
             gfx_PrintUInt(frameHeader, 8);
             gfx_SetTextXY(0, 16);
@@ -472,7 +489,7 @@ select:
             }
 #endif
 #if DEBUG > 3
-            gfx_FillScreen(74);
+            gfx_FillScreen(COLOR_BACKGROUND);
             printBuffer((chunkBuffer + chunkHeadPointer), lineCount);
             while (!(key = os_GetCSC()));
 
@@ -482,51 +499,67 @@ select:
             }
 #endif
 
-            // draw (320x240)
-            //x = 0xD40000;       // start of vRam, set here because it's used in later ASM and easier to just assign now
-            hlSave = 0xD40000;
+            hlSave = 0xD40000;   // start of vRam, set here because it's used in later ASM and easier to just assign now
             y = 0;
 
-            if (frameHeader & 128) { // If 1st bit set, start with white (check for black because color is opposite of actual set color)
-                color = 0x00;
-                gfx_SetColor(0xFF); // Setup color swapping
-            }
-            else {                  // This can likely be optimized, just a quick fix
-                color = 0xFF;
-                gfx_SetColor(0x00); // Setup color swapping
+            color = 0xFF;           // Setup color swapping
+            gfx_SetColor(COLOR_BLACK);
+            if (frameHeader & 128) { // If 1st bit set, swap color to start with white
+                color = gfx_SetColor(color);
             }
 
-            renderFrame((chunkBuffer + chunkHeadPointer), lineCount);
+            if (!KEYS_SKIP) {   // Skip ahead
+                renderFrame((chunkBuffer + chunkHeadPointer), lineCount); // Render the frame (who would've guessed thats what this does?)
+            }
+
+            //FPS counter data collection, time "stops" (being relevant) after this point; insert Jo-Jo reference here
+            FPS = (32768 / timer_1_Counter);
+
+            // time temporarily stops if we're running too fast
+            if (FPS > LLVH_header.fps && !KEYS_SKIP) {  // if we're skipping ahead, don't delay, teach your hippo today
+                delay((1000 / (float)LLVH_header.fps) - (1000 / FPS));
+            }
+
+            // menu stuff is done here because we don't want to count the time we're in the menu towards rendering the next frame
+            kb_Scan();
+            if (KEYS_CONFIRM || KEYS_SKIP) {
+                // Pause Bar
+                gfx_SetColor(COLOR_BACKGROUND);
+                gfx_FillRectangle(0, 230, LCD_WIDTH, 10);   // Background
+                gfx_SetColor(COLOR_BLACK);
+                gfx_SetTextXY(1, 232);      // Play button & current time
+                gfx_PrintString("\x10 ");
+                gfx_PrintUInt(LLVH_header.frameTotal - remainingFrames, 3);
+                gfx_SetTextXY(282, 232);
+                gfx_PrintUInt(LLVH_header.frameTotal, 4);   // Total length
+                gfx_FillRectangle(38, 235, 243, 1);  // Playbar
+                gfx_FillRectangle(38, 234, 243 / (LLVH_header.frameTotal / ((float)LLVH_header.frameTotal - remainingFrames)), 3);  // yeet math (played video progress)
+
+                // Janky keypad unjanking
+                if (!KEYS_SKIP) {
+                    while (kb_AnyKey());
+                    while (!kb_AnyKey());
+                    if (KEYS_CANCEL) {
+                        remainingFrames = 1;    // Trick the exit code to think we're done playing the vid (because we are i guess)
+                    }
+                    while (kb_AnyKey());    // require the key to be unpressed b5 we continue*/
+                }
+            }
+
+            timer_1_Counter = 0;
+
 #if DEBUG > 3
             while (!os_GetCSC());
 #endif
-            chunkHeadPointer += lineCount;
 
+            chunkHeadPointer += lineCount;
             remainingFrames--;
+            if (remainingFrames == 0) { // remainingFrames is unsigned, so it will never be below 0 (the cancel code used to set it to 0, not 1. this caused many problems...)
+                break;
+            }
         }
     }
 
-    key = 0;
     //gfx_SetDrawScreen();
     goto select;
-
-
-
-    /*
-
-    // read how many frames are in this file
-    ti_Read(&frameCount, 1, 1, LLV_FILE);
-
-    for (i = 0; i < frameCount; i++) {
-        decodeFrame()
-    }
-
-    remainingFrames -= frameCount;  // Subtract the # of frames we just displayed from the total number of frames left
-
-    if (remainingFrames > 0) {  // Frames left to read
-        ti_CloseAll();
-        goto open;
-    }*/
-
 }
-
