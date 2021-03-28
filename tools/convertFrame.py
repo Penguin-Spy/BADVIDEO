@@ -147,11 +147,15 @@ outputPath = sys.argv[2]
 if (not outputPath.endswith('/')):
     outputPath += '/'
 varName = sys.argv[3][0:8].upper()
+try:
+    framesToEncode = int(sys.argv[4])
+except:
+    framesToEncode = 0
+    print(f'[Note]: # of frames to encode was unspecified. Setting to default: "{framesToEncode}"')
 
 # Read the video from specified path
 inputVideo = cv2.VideoCapture(inputPath)
 inputVideoTag = TinyTag.get(inputPath)
-
 
 # title = "Bad Apple"
 title = inputVideoTag.title
@@ -167,7 +171,7 @@ except Exception:
 headerBytes = bytes("LLVH", "ascii")
 headerBytes += bytes([0b00000000])   # Version (0=debug)
 headerBytes += bytes([0b01000000])   # Features (0 - Captions; 1 - Sound; 2-7 Reserved, should be zeros.)
-headerBytes += bytes([0b00000101])   # FPS
+headerBytes += bytes([int(inputVideo.get(cv2.CAP_PROP_FPS))])   # FPS
 titleBytes = bytes(title, "ascii")   # Title
 headerBytes += len(title).to_bytes(1, 'big')  # Title length
 headerBytes += titleBytes
@@ -258,7 +262,7 @@ while(True):
     else:
         print("End of video reached.")
         break
-    if(frameTotal > 4096):
+    if(frameTotal > framesToEncode and not framesToEncode == 0):  # 0 == encode the whole video
         break
 
 # Finish up loop operations that normally would wait for a condition to be true
@@ -270,11 +274,7 @@ while(True):
 # if (len(uncompressedVideoBytes) > 0):
 #    compressedVideoBytes += compressBytes(uncompressedVideoBytes)
 
-
-print(unCVideoBytes)
-# print(cVideoBytes)
-
-headerBytes += frameTotal.to_bytes(2, 'little')
+headerBytes += (frameTotal - 1).to_bytes(2, 'little')
 
 # TODO: parse output text of zx7.exe & save delta & max buffer size to headers/stdout
 
