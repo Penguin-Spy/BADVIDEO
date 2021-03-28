@@ -17,7 +17,7 @@ DESCRIPTION ?= "Bad Apple for the TI 84+ CE (but its black and white anyways, so
 #EXTRA_CFLAGS        ?=
 #USE_FLASH_FUNCTIONS ?= YES|NO
 #OUTPUT_MAP          ?= YES|NO
-#ARCHIVED            ?= YES|NO
+ARCHIVED             ?= YES
 #OPT_MODE            ?= -optsize|-optspeed
 #SRCDIR              ?= src
 #OBJDIR              ?= obj
@@ -27,37 +27,36 @@ DESCRIPTION ?= "Bad Apple for the TI 84+ CE (but its black and white anyways, so
 
 include $(CEDEV)/include/.makefile
 
+# yes this has to be below the include; gosh, make is sometimes so finicky
 VIDEOBINDIR          := $(BINDIR)/video
 VIDEOSRCDIR          := $(SRCDIR)/video
 
-# makes a group from a video (video → *.bin → *.8vx → NAME.8xg)
-# doesn't work because groups must fit in 64k
-#$(BINDIR)/%.8xg: $(VIDEOSRCDIR)/%.mp4
-#	$(Q)echo Converting $^ to $@
-#	py convertFrame.py $^ $(OBJDIR) $(basename $(notdir $@))
-#	$(CONVBIN) -n $(basename $(notdir $@)) -j bin -k 8xg-auto-extract -o $@ -r $(addprefix -i , $(wildcard obj/*.8xv))
-
-
+# target used by convertFrame.py for cross-platform convbin
 $(VIDEOBINDIR)/%.8xv: $(VIDEOBINDIR)/%.bin
 	$(Q)echo $^ $@
 	$(Q)$(CONVBIN) -n $(basename $(notdir $@)) -j bin -k 8xv -i $^ -o $@ -r
 
-$(VIDEOBINDIR)/%.8xv: $(VIDEOSRCDIR)/%.mp4
+# target used to create the various .8xv files from the .mp4 (.llv is a "phony file type" used to make this target different from the above one)
+$(VIDEOBINDIR)/%.llv: $(VIDEOSRCDIR)/%.mp4
 	$(Q)echo Converting $^ to $@
-	$(Q)py tools/convertFrame.py $^ $(VIDEOBINDIR) $(basename $(notdir $@))
+	$(Q)py tools/convertFrame.py $^ $(VIDEOBINDIR) $(basename $(notdir $@)) $(lastword $(filter-out $@, $(MAKECMDGOALS)))
 
-
-%: $(VIDEOBINDIR)/%.8xv
+# QoL target to just specify the name of a video & clean then convert it
+%: cleanvideo $(VIDEOBINDIR)/%.llv
 	$(Q)echo Created video $@
 
+# Cleans all intermediate & resulting video binaries
 cleanvideo:
-	$(Q)$(RM) $(VIDEOBINDIR)/*.bin
-	$(Q)$(RM) $(VIDEOBINDIR)/*.8xv
+	$(Q)$(RM) "bin/video/"
 	$(Q)$(RM) temp.bin.zx7
+	$(Q)$(RM) temp.bin
 
+# gonna be honest, i forgot what .INTERMEDIATE means but i'll assume it says something like "hey don't delete my files while i'm in the middle of using them"
 .INTERMEDIATE: temp.bin temp.bin.zx7
 
+# tell make to not delete our outputs just because they have a different name than our supposed target
 .PRECIOUS: $(VIDEOBINDIR)/%.bin
 .PRECIOUS: $(VIDEOBINDIR)/%.8xv
 
+# cleanvideo is actually fake news, not real, government propoganda, secret survelance drones used to track if you've learned the truth that the earth is flat
 .PHONY: cleanvideo
