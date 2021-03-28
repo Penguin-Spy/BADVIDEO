@@ -1,8 +1,12 @@
 FT260 Pin defaults:
 DIO1	GPIOB
 DIO2	GPIOE
+
 DIO3	GPIOC (w/ no UART)
 DIO4	GPIOD (w/ no UART)
+
+DIO5    GPIO0 (w/ no I²C or EEPROM)
+DIO6    GPIO1 (w/ no I²C or EEPROM)
 
 DIO9	GPIOF
 DIO10	GPIO4
@@ -15,6 +19,8 @@ DCNF1	Low
 DCNF0	High (Only I²C enabled)
 On the UMFT260EV1A, this means JP7-1 connected to JP7-2 (i think), meaning: JP7 VCCIO(power) to DCNF0
 
+To disable I²C and EEPROM and use DIO0/1 as GPIO pins, the board should be configured with
+JP3/4/8 as Open, to disconnect the I²C bus pull-up circuit and disable the on-board I²C EEPROM
 
 DIO5/6 can be used as GPIO if I²C is disabled using USB commands (alternate solution if UART is hard to disable)
 

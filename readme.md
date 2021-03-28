@@ -10,12 +10,12 @@ The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video ca
 
 A tool to convert a video file (uses OpenCV, I've tested with .mp4) to a collection of AppVars can be found in `tools/convertFrame.py`. Usage is as follows:
 ```
-convertFrame.py <input video file> <output directory> <AppVar name (1-8 chars)>
+convertFrame.py <input video file> <output directory> <AppVar name (1-8 chars)> [# of frames to convert]
 ```
 
 The video is stored in my own file format (Line-Length Video), the specification can be found in `format.md`.
 
-Please not that this specification is currently not complete, and is subject to change at any time without a version increase.
+Please not that this specification is currently not complete, and is subject to change at any time with a version increase.
 
 ---
 
