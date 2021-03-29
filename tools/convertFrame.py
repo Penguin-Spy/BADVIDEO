@@ -32,7 +32,8 @@ def encodeFrame(frame):
     width, height = img.size
     color = pixels[0, 0]
 
-    frameHeader = 0b10000000 * (color == 0)  # Starting color (1 = black)
+    # frameHeader = 0b10000000 * (color == 0)  # Starting color (1 = black)
+    startColor = (color == 0)
 
     horizontalFrameBytes = bytes()
     # verticalFrameBytes = bytes()
@@ -63,10 +64,10 @@ def encodeFrame(frame):
     horizontalFrameBytes += bytes([currentLineLength + 1])
     horizontalLineCount += 1
 
-    currentLineLength = -1  # Start at -1 so that we enter the first pixel at line length 0
-    color = pixels[0, 0]
-
     # Compress vertically
+    # currentLineLength = -1  # Start at -1 so that we enter the first pixel at line length 0
+    # color = pixels[0, 0]
+    #
     # for c in range(width):
     #    for r in range(height):
     #        cpixel = pixels[c, r]
@@ -91,9 +92,9 @@ def encodeFrame(frame):
 
     # Comparison of file sizes with different directions:
     # Direction | #files | last size | max frame size
-    # Horizontal    04        2,875      1063 bytes
+    # Horizontal    04        2,875      1063 bytes  -  this is the one that gets used because decoding vertical takes 3 years
     # Vertical      03       40,075      1492 bytes
-    # Lowest of ↑   03       28,993      1063 bytes  -  this is the one that gets used
+    # Lowest of ↑   03       28,993      1063 bytes
     # Highest lol   04       14,066      1492 bytes
     # if (len(horizontalFrameBytes) < len(verticalFrameBytes)):
     frameBytes = horizontalFrameBytes
@@ -104,20 +105,23 @@ def encodeFrame(frame):
     #    frameHeader += 0b01000000   # Compression direction (1 = vertical)
 
     # Frame Header & This is how the TI-84 stores 16 bit ints, so thats how we store it.
-    frameBytes = bytes([frameHeader]) + lineCount.to_bytes(2, 'little') + frameBytes
+    # frameBytes = bytes([frameHeader]) + lineCount.to_bytes(2, 'little') + frameBytes
 
     print("Encoded frame", frameTotal, "with", lineCount, "lines.")
 
-    return frameBytes
+    return startColor, lineCount.to_bytes(2, 'little') + frameBytes
 
 
 def compressBytes(uncompressedBytes):
+    if (len(uncompressedBytes) == 0):
+        print("[ERROR]: uncompressedBytes is empty")
+        return bytes()
     global maxUncompressedChunk
     global maxDelta
     try:
         os.remove("temp.bin.zx7")
     except FileNotFoundError:
-        0
+        0   # whoo python is amazing right?
     uncompressedFile = open("temp.bin", 'wb')
     uncompressedFile.write(uncompressedBytes)
     uncompressedFile.close()
@@ -140,6 +144,21 @@ def save8xv(outPath, outBytes):
     print("Wrote ", len(outBytes), " bytes to ", outFile.name)
     outFile.close()
     os.system('@make ' + str(outFile.name).replace('.bin', '.8xv'))
+
+
+def makeHeader(color, compDir, repeatedFrames, sound):
+    header = 0
+    if (color):
+        header += 0b10000000
+    if (repeatedFrames > 0):
+        header += 0b00100000
+
+    #header = 0b00100000 * (repeatedFrames > 0)
+    #header = int(header) + (0b10000000 * color)
+    header = bytes([header])
+    if (repeatedFrames > 0):
+        header += bytes([repeatedFrames])
+    return header
 
 
 inputPath = sys.argv[1]
@@ -169,19 +188,18 @@ except Exception:
     print(f'[Warning]: Title could not be encoded via ascii. Setting to default: "{title}"')
 
 headerBytes = bytes("LLVH", "ascii")
-headerBytes += bytes([0b00000000])   # Version (0=debug)
-headerBytes += bytes([0b01000000])   # Features (0 - Captions; 1 - Sound; 2-7 Reserved, should be zeros.)
+headerBytes += bytes([0b10010000])   # Version (1.0 DEBUG)
+headerBytes += bytes([0b00000000])   # Features (0 - Sound; 1-7 Reserved, should be zeros.)
 headerBytes += bytes([int(inputVideo.get(cv2.CAP_PROP_FPS))])   # FPS
 titleBytes = bytes(title, "ascii")   # Title
 headerBytes += len(title).to_bytes(1, 'big')  # Title length
 headerBytes += titleBytes
-# captionCount
-# *captions
-
 
 frameTotal = 0  # Overall total frames in the entire video
 repeatedFrames = 0  # How many frames in a row were identical
 fileIndex = 0  # Which file is this
+oldFrameBytes = bytes()
+oldColor = 0  # gross but eh
 
 unCVideoBytes = bytes()  # Uncompressed video bytes
 cVideoBytes = bytes()   # Compressed video bytes
@@ -191,18 +209,45 @@ while(True):
     ret, frame = inputVideo.read()
 
     if ret:
-        frameBytes = encodeFrame(frame)
+        color, frameBytes = encodeFrame(frame)  # Encode this frame
 
-        unCVideoBytes += frameBytes
+        if (frameBytes == oldFrameBytes and color == oldColor):
+            repeatedFrames += 1
+        elif (len(oldFrameBytes) != 0):
+            unCVideoBytes += makeHeader(oldColor, 0, repeatedFrames, 0) + oldFrameBytes
+            repeatedFrames = 0
+            frameTotal += 1
 
-        frameTotal += 1
+        oldFrameBytes = frameBytes
+        oldColor = color
 
-        if ((frameTotal % 8) == 0):  # Compress in batches of 8 frames
+        # no repeatedFrames counting
+        #unCVideoBytes += makeHeader(color, 0, 0, 0) + frameBytes
+        #frameTotal += 1
+
+        if ((frameTotal % 8) == 0 and frameTotal != 0):  # Compress in batches of 8 frames
             cVideoBytes += compressBytes(unCVideoBytes)
             unCVideoBytes = bytes()
 
         if (len(frameBytes) > maxFrameSize):
             maxFrameSize = len(frameBytes)
+
+        # previousFrameBytes = frameBytes  # Save last frame
+        # frameHeader, frameBytes = encodeFrame(frame)  # Encode this frame
+
+        # if (frameBytes == previousFrameBytes):
+        #    repeatedFrames += 1
+        # else:
+        #    unCVideoBytes += bytes([frameHeader | 0b00100000]) + bytes([repeatedFrames]) + frameBytes
+        #    repeatedFrames = 0
+        #    frameTotal += 1
+
+        # if ((frameTotal % 8) == 0):  # Compress in batches of 8 frames
+        #    cVideoBytes += compressBytes(unCVideoBytes)
+        #    unCVideoBytes = bytes()
+
+        # if (len(frameBytes) > maxFrameSize):
+        #    maxFrameSize = len(frameBytes)
 
         # if (frameTotal > 1):  # Don't run this on the first loop
         # if (frameBytes == lastFrameBytes):
