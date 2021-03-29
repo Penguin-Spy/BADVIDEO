@@ -1,7 +1,8 @@
 /src/video/*.mp4
 /.vscode/
 *.bak
-*.map
+temp.bin
+temp.bin.zx7
 /obj/
 # bin/ should be ignored as well, but i do want to release the built program and bad apple video
 # (should be done in github release, but for now this works)

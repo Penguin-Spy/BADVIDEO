@@ -32,12 +32,12 @@ void printBuffer(uint8_t* buffer, uint16_t size) {
     gfx_SetTextXY(0, 0);
     for (i = 0; i < size; i++) {
         printByte(buffer[i]);
-        if (i % 16 == 0) {
+        if (i % 16 == 0 && i != 0) {
             gfx_SetTextXY(0, gfx_GetTextY() + 8);
         }
         if (gfx_GetTextY() > 230) {
             while (!os_GetCSC());
-            gfx_FillScreen(74);
+            gfx_FillScreen(0x1E);
             gfx_SetTextXY(0, 0);
         }
     }
