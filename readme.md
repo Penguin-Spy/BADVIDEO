@@ -15,8 +15,7 @@ While playing a video, these are the controls:
 
 (No rewind because of how the video is stored, it's basically impossible)
 
-The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/video/`. All files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 49`) are required for the video to play in full.  
-You may notice a slight problem however: all of these files won't actually fit on the calculator. I'm still working on that... yeah. If you put everything you can on the calculator (`BADAPPLE` & `00-45`, with 44 & 45 in RAM) and just let it hit the end of the files, it seems to consistently not crash on CEmu, but I don't recommend testing this on a physical calculator.
+The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/video/`. All files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 45`) are required for the video to play in full. Currently, the full converted video wouldn't fit on a calculator, so the final 15-ish seconds have been truncated (yes, it's really that close).
 
 A python script to convert a video file (uses OpenCV, I've tested with .mp4) to a collection of AppVars can be found in `tools/convertFrame.py`. Usage is as follows:
 ```
