@@ -513,12 +513,14 @@ select:
                 // time temporarily stops if we're running too fast
                 if (FPS > LLVH_header.fps && !KEYS_SKIP) {  // if we're skipping ahead, don't delay, teach your hippo today
                     delay((1000 / (float)LLVH_header.fps) - (1000 / FPS));
+#if DEBUG == 2
                     if (repeatFrames > 0) {
                         gfx_SetColor(COLOR_BACKGROUND);
                         gfx_FillRectangle(0, 0, 3 * 8, 8);
                         gfx_SetTextXY(0, 0);
                         gfx_PrintUInt(repeatFrames, 3);
                     }
+#endif
                 }
 
                 // menu stuff is done here because we don't want to count the time we're in the menu towards rendering the next frame
