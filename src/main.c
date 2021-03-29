@@ -357,29 +357,32 @@ select:
     }
 
     remainingFrames = LLVH_header.frameTotal;
-    gfx_FillScreen(COLOR_BACKGROUND);
-    gfx_SetTextXY(0, 8);
-    gfx_PrintUInt(remainingFrames, 8);
-    if (LLVH_header.version < LLV_VERSION) {
-        gfx_SetTextFGColor(COLOR_ERROR);
-        gfx_PrintStringXY("File outdated:", 0, 16);
-        gfx_SetTextXY(15 * 8, 16);
-        gfx_PrintUInt(LLVH_header.version, 8);
+    if (LLVH_header.version != LLV_VERSION) {
+#if DEBUG > 0
+        gfx_SetTextXY(0, 8);
+        gfx_PrintUInt(remainingFrames, 8);
+#endif
+        gfx_FillScreen(COLOR_BACKGROUND);
+        if (LLVH_header.version < LLV_VERSION) {
+            gfx_SetTextFGColor(COLOR_ERROR);
+            gfx_PrintStringXY("File outdated:", 0, 0);
+            gfx_SetTextXY(15 * 8, 0);
+            gfx_PrintUInt(LLVH_header.version, 8);
+        }
+        if (LLVH_header.version > LLV_VERSION) {
+            gfx_SetTextFGColor(COLOR_ERROR);
+            gfx_PrintStringXY("Program outdated:", 0, 0);
+            gfx_SetTextXY(18 * 8, 0);
+            gfx_PrintUInt(LLVH_header.version, 8);
+        }
+        while (kb_AnyKey());
+        while (!kb_AnyKey());
+        if (KEYS_CANCEL) {
+            gfx_End(); // End graphics drawing
+            return 0;
+        }
     }
-    if (LLVH_header.version > LLV_VERSION) {
-        gfx_SetTextFGColor(COLOR_ERROR);
-        gfx_PrintStringXY("Program outdated:", 0, 16);
-        gfx_SetTextXY(15 * 8, 16);
-        gfx_PrintUInt(LLVH_header.version, 8);
-    }
-    gfx_SetTextFGColor(COLOR_TEXT);
-    while (kb_AnyKey());
-    while (!kb_AnyKey());
-    if (KEYS_CANCEL) {
-        gfx_End(); // End graphics drawing
-        return 0;
-    }
-    while (kb_AnyKey());
+    while (kb_AnyKey());    // wait for all keys to be unpressed (so that the enter in the menu doesn't immediatley pause)
 
     //TODO: read filenames properly
     LLV_FILE = ti_Open(fileNames[h], "r");
