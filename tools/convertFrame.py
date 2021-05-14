@@ -188,12 +188,14 @@ except Exception:
     print(f'[Warning]: Title could not be encoded via ascii. Setting to default: "{title}"')
 
 headerBytes = bytes("LLVH", "ascii")
-headerBytes += bytes([0b10010000])   # Version (1.0 DEBUG)
+headerBytes += bytes([0b10010001])   # Version (1.1 DEBUG)
 headerBytes += bytes([0b00000000])   # Features (0 - Sound; 1-7 Reserved, should be zeros.)
 headerBytes += bytes([int(inputVideo.get(cv2.CAP_PROP_FPS))])   # FPS
-titleBytes = bytes(title, "ascii")   # Title
+headerBytes += bytes([0x00])   # Off color (set manually)
+headerBytes += bytes([0xB5])   # On color (set manually)
+titleBytes = bytes(title, "ascii")   # get title
 headerBytes += len(title).to_bytes(1, 'big')  # Title length
-headerBytes += titleBytes
+headerBytes += titleBytes            # Title
 
 frameTotal = 0  # Overall total frames in the entire video
 repeatedFrames = 0  # How many frames in a row were identical

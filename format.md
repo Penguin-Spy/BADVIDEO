@@ -1,5 +1,5 @@
 ## Line Length Video (.LLV) Format Specification
-Version 1.0 DEBUG
+Version 1.1 DEBUG
 Copyright Penguin_Spy 2021
 
 |   Name   |  Offset  |  Length  |  Description
@@ -7,7 +7,9 @@ Copyright Penguin_Spy 2021
 |  Version |     0    |  1 Byte  | Version of this LLV file. For this specification, should be `0b1.001.0000`, 1st bit is set if debug
 | Features |     1    |  1 Byte  | Bitmask - Which features this file uses: 0 - Sound; 1-7 Reserved, should be zeros.
 |    FPS   |     2    |  1 Byte  | Frames per Second to play the video in.
-|   Title  |     3    |  str + 1 | Null-terminated string to display as the name of the video.
+|    OFF   |     3    |  1 Byte  | Frames per Second to play the video in.
+|    ON    |     4    |  1 Byte  | Frames per Second to play the video in.
+|   Title  |     5    |  1 + str | Length-prepended string to display as the name of the video.
 |  Frames  |  depends | #o Frames| List of frames. Frame format is described below.
 
 ### .LLV Frame Format

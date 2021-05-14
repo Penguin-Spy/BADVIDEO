@@ -8,3 +8,5 @@ temp.bin.zx7
 # (should be done in github release, but for now this works)
 bin/*.bin
 bin/*.map
+bin/video
+bin/LAGTRAIN_full

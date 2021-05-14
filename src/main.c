@@ -19,10 +19,12 @@
 //#include <C:/CEdev/BADVIDEO/src/decompression_test.c>
 
 #define DEBUG -1   // -1 = no debug, 0 = chunk header, 1 = chunk buffer, 2 = frame header, 3 = frame buffer (& pause on every frame)
-#define ZX7_DELTA 13
-#define ZX7_BUFFER_SIZE 21454 + ZX7_DELTA
+#define ZX7_DELTA 3
+#define ZX7_BUFFER_SIZE 41039 + ZX7_DELTA
+//#define ZX7_DELTA 13
+//#define ZX7_BUFFER_SIZE 21454 + ZX7_DELTA
 #define FRAMES_PER_CHUNK 8
-#define LLV_VERSION 144 // 0b1.001.0000; 1.0 debug
+#define LLV_VERSION 145 // 0b1.001.0001; 1.1 debug
 
 // is this dumb? probably but idc
 #define KEYS_CONFIRM ((kb_Data[6] & kb_Enter) || (kb_Data[1] & kb_2nd)) // Pausing & confirm
@@ -30,42 +32,11 @@
 #define KEYS_SKIP (kb_Data[7] & kb_Right)                               // Skipping ahead in the video
 #define KEYS_INFO (kb_Data[1] & kb_Mode)                                // Display more info for the video/frame
 
-#define COLOR_OFF 0x00
-#define COLOR_ON 0xFF
+//#define COLOR_OFF 0x00
+//#define COLOR_ON 0xFF
 #define COLOR_BACKGROUND 0x1E
 #define COLOR_TEXT 0x00
 #define COLOR_ERROR 0x80
-
-//#include <src/renderFrame.h>
-//#include <src/renderFrame.asm>
-
-/*
-|  Version |     0    |  1 Byte  | Version of this LLV file. For this specification, should be (`0b00001001`)
-| Features |     1    |  1 Byte  | Bitmask - Which features this file uses: 0 - Captions; 1 - Sound; 2-7 Reserved, should be zeros.
-|    FPS   |     2    |  1 Byte  | Frames per Second to play the video in.
-|TitleLngth|     3    |  1 Byte  | Length of the title string
-|   Title  |     4    |  strln+1 | String to display as the name of the video.
-| #o Cptns |  depends |  2 Bytes | Number of caption strings in the following list. Not included if captions were not specified in the Features bitmask
-| Captions |  depends | str+4*ln | List of null-terminated caption strings, followed by x & y postion to display string at. Not included if captions were not specified in the Features bitmask.
-| #o Frames|  depends |  2 Bytes | Number of frames in the following list.
-|  Frames  |  depends | #o Frames| List of frames. Frame format is described below.
-*/
-/*
-|  Header  |     0    |  1 Byte  | Bitmask - how to render frame:
-|          |          |          |  0 - Starting color; 0 = black, 1 = white
-|          |          |          |  1 - Compression direction; 0 - horizontal, 1 = vertical
-|          |          |          |  2 - Display length; 0 - display frame for normal time (depends on FPS), 1 - next bytes include length of time to display this frame.
-|          |          |          |  3 - Caption; 0 - no caption change, 1 - next bytes include caption string index to show.
-|          |          |          |  4 - Sound; 0 - no sound change, 1 - next bytes include tone/note to play.
-|          |          |          |  5-7: Reserved, should be 0.
-|  Display |     1    |  1 Byte  | If display length bit set, number of frames to display this frame for. Not present otherwise.
-|  Caption |  depends |  2 Bytes | If caption bit set, caption index to show. If value is 0xFFFF, clear any displayed captions. Not present otherwise.
-|   Sound  |  depends |  1 Byte? | If sound bit set, tone/note to play. Not present otherwise.
-| #o lines |  depends |  2 Bytes | Number of lines in this frame.
-|Frame Data|  depends | #o lines | List of distances between each color change. A value of 0xFF (255) does not swap the color, allowing contiguous sections of the same color longer than 255. Line lengths of exactly 255 are encoded as a 255 length line, followed by a 0 length line.
-*/
-
-//extern void decodeVertical(uint8_t* frameBuffer, uint16_t lineCount);
 
 typedef struct
 {
@@ -90,10 +61,11 @@ typedef struct
     uint8_t    version;
     uint8_t    features;
     uint8_t    fps;
+    uint8_t    color_off;
+    uint8_t    color_on;
     uint8_t    titleLength;
     char* title;
-    uint16_t   captionCount;
-    caption_t* captions;
+    uint8_t    title_NULL; //fanstastic progamming, i know
     uint16_t   frameTotal;
 } llvh_header_t;
 
@@ -135,8 +107,7 @@ void renderFrame(uint8_t frame[], uint16_t lineCount) {
             //"DI\n"
             "ldir\n"                        // fancy-shmancy instruction that loops until bc == 0x00, copying (hl) to (de) and incrementing both
             "ld    (_hlSave), hl\n" // x
-            "skip_ASM:\n"
-            //"EI\n"
+            "skip_ASM:\n"//"EI\n"
             "ld  a, (IX-3)\n"               // Restore A register from before this code (is used b4 by getting the line, and after by the if statement)
         );
 
@@ -234,7 +205,8 @@ int main(void) {
     uint16_t chunkHeadPointer;  // Where in the decompressed buffer we are at
     uint8_t compressionDelta = 2;
 
-    float FPS;  // calculated fps, is float because math? check the code that uses this below ↓
+    uint16_t FPS;  // calculated fps, is float because math? check the code that uses this below ↓
+    uint16_t msBehind = 0;  // # of miliseconds that we're behind. when this reaches 1000/LLVH_Header.fps, we skip a frame to catch up
 
     //start up a timer for FPS monitoring, do not move:
     timer_Control = TIMER1_ENABLE | TIMER1_32K | TIMER1_UP;
@@ -273,13 +245,13 @@ select:
         strcpy(LLVH_header.fileName, var_name);            // File name for printing
         strcpy(fileNames[numFound], var_name);             // File name saved for opening
         ti_Seek(4, SEEK_SET, LLV_FILE);                    // Seek past "LLVH" header
-        ti_Read(&LLVH_header.fileName + 8, 4, 1, LLV_FILE); // Offsets 0-3 (version, features, fps)
+        ti_Read(&LLVH_header.fileName + 8, 6, 1, LLV_FILE); // Offsets 0-5 (version, features, fps, off, on)
         LLVH_header.title = (char*)ti_MallocString(LLVH_header.titleLength);
         ti_Read(LLVH_header.title, 1, LLVH_header.titleLength, LLV_FILE); // Title String
-        if ((LLVH_header.features) & 128) {                        // Captions exist
+        /*if ((LLVH_header.features) & 128) {                        // Captions exist
             ti_Read(&LLVH_header.captionCount, 2, 1, LLV_FILE);    // Number of captions
             ti_Seek(LLVH_header.captionCount, SEEK_CUR, LLV_FILE); // Seek pask the captions list
-        }
+        }*/
         ti_Read(&LLVH_header.frameTotal, 1, 2, LLV_FILE); // Number of frames
 
         // Print in list
@@ -317,7 +289,7 @@ select:
     }
 
     //           LLVH, Header, Title string,       frameTotal
-    headerSize = 4 + 4 + LLVH_header.titleLength + 2;
+    headerSize = 4 + 6 + LLVH_header.titleLength + 2;
 
     if (numFound == 0) {
         gfx_SetTextXY(10, 0);
@@ -344,7 +316,6 @@ select:
         // Draw selection carrot
         gfx_SetColor(COLOR_BACKGROUND);
         gfx_FillRectangle(0, 0, 10, 8 * numFound);
-        gfx_SetColor(COLOR_OFF);
         gfx_SetTextXY(0, h * 8);
         gfx_PrintString(">");
 
@@ -497,32 +468,42 @@ select:
                 return 0;
             }
 #endif
-            color = COLOR_ON;           // Setup color swapping
-            gfx_SetColor(COLOR_OFF);
+            color = LLVH_header.color_on;           // Setup color swapping
+            gfx_SetColor(LLVH_header.color_off);
             if (frameHeader & 128) { // If 1st bit set, swap color to start with white
                 color = gfx_SetColor(color);
             }
 
-            if (!KEYS_SKIP) {   // Skip ahead
+            if (!KEYS_SKIP && msBehind < (1000 / LLVH_header.fps)) {   // Skip ahead without spending the time to render
                 renderFrame((chunkBuffer + chunkHeadPointer), lineCount); // Render the frame (who would've guessed thats what this does?)
-                //gfx_FillScreen(COLOR_BACKGROUND);
-                //printBuffer((chunkBuffer + chunkHeadPointer), lineCount);
+            } else if (msBehind > (1000 / LLVH_header.fps)) {
+                msBehind -= (1000 / LLVH_header.fps);
             }
 
             do {
                 //FPS counter data collection, time "stops" (being relevant) after this point; insert Jo-Jo reference here
-                FPS = (32768 / timer_1_Counter);
+                FPS = (32768 / timer_1_Counter); // Cycles/Second / Cycles = 1/Second
 
                 // time temporarily stops if we're running too fast
-                if (FPS > LLVH_header.fps && !KEYS_SKIP) {  // if we're skipping ahead, don't delay, teach your hippo today
-                    delay((1000 / (float)LLVH_header.fps) - (1000 / FPS));
+                if (FPS > LLVH_header.fps) {  // if we're skipping ahead, don't delay, teach your hippo today
+                    if (!KEYS_SKIP) {
+                        delay((1000 / LLVH_header.fps) - (1000 / FPS));
 #if DEBUG == 2
-                    if (repeatFrames > 0) {
-                        gfx_SetColor(COLOR_BACKGROUND);
-                        gfx_FillRectangle(0, 0, 3 * 8, 8);
-                        gfx_SetTextXY(0, 0);
-                        gfx_PrintUInt(repeatFrames, 3);
+                        if (repeatFrames > 0) {
+                            gfx_SetColor(COLOR_BACKGROUND);
+                            gfx_FillRectangle(0, 0, 3 * 8, 8);
+                            gfx_SetTextXY(0, 0);
+                            gfx_PrintUInt(repeatFrames, 3);
+                        }
+#endif
                     }
+                } else {
+                    msBehind += FPS;    // yes this is wack i'm pretty sure my units are messed up but the math works so i'm not complaining
+#if DEBUG == 2
+                    gfx_SetTextFGColor(COLOR_BACKGROUND);
+                    gfx_SetTextXY(0, 0);
+                    gfx_PrintUInt(msBehind, 5);
+                    gfx_SetTextFGColor(COLOR_TEXT);
 #endif
                 }
 
@@ -532,7 +513,7 @@ select:
                     // Pause Bar
                     gfx_SetColor(COLOR_BACKGROUND);
                     gfx_FillRectangle(0, 230, LCD_WIDTH, 10);   // Background
-                    gfx_SetColor(COLOR_OFF);
+                    gfx_SetColor(LLVH_header.color_off);
                     gfx_SetTextXY(1, 232);      // Play button & current time
                     gfx_PrintString("\x10 ");
                     gfx_PrintUInt(LLVH_header.frameTotal - remainingFrames, 3);
@@ -549,14 +530,16 @@ select:
                             while (!kb_AnyKey());
                             if (KEYS_INFO) {
                                 gfx_SetColor(COLOR_BACKGROUND);
-                                gfx_FillRectangle_NoClip(0, 0, 64, 32);
+                                gfx_FillRectangle_NoClip(0, 0, 64, 40);
                                 gfx_SetTextXY(0, 0);
                                 gfx_PrintUInt(frameHeader, 3);
                                 gfx_SetTextXY(0, 8);
                                 gfx_PrintUInt(repeatFrames, 3);
                                 gfx_SetTextXY(0, 16);
-                                gfx_PrintUInt(lineCount, 5);
+                                gfx_PrintUInt(FPS, 5);
                                 gfx_SetTextXY(0, 24);
+                                gfx_PrintUInt(msBehind, 5);
+                                gfx_SetTextXY(0, 32);
                                 gfx_PrintUInt(remainingFrames, 5);
                             }
                             if (KEYS_SKIP) { pause = 2; }
@@ -574,7 +557,7 @@ select:
 
                 if (repeatFrames > 0) {
                     repeatFrames--;
-                    delay(1);
+                    delay(1);   // gross but works i guess (makes sure timer 1 isn't 0 when we calc the FPS while repeating frames, so that we delay properly)
                 }
             } while (repeatFrames > 0);
 
