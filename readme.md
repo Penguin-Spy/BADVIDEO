@@ -15,7 +15,7 @@ While playing a video, these are the controls:
 
 (No rewind because of how the video is stored, it's basically impossible)
 
-The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/badapple/`. All 8xv files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 45`) are required for the video to play. Only the first 6000 frames (of 6558) are generated, because the full video just *barely* doesn't fit.
+The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/badapple/`. All 8xv files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 45`) are required for the video to play. Currently, the full converted video wouldn't fit on a calculator, so the final 15-ish seconds have been truncated (yes, it's really that close).
 Additionally, a pre-converted [Lagtrain](https://www.youtube.com/watch?v=UnIhRpIT7nc) can also be found, in `bin/lagtrain/`. Again, all 8xv files are required, and the full video is not stored (only like half this time because the line art is bad for LLV encoding). There are some issues with playing this video, mainly the speed is inconsistent (even with the frame-skipping & waiting code?????), and occasionally, randomly, it will refuse to update the screen for large portions of the video.
 
 A python script to convert a video file (uses OpenCV, I've tested with .mp4) to a collection of AppVars can be found in `tools/convertFrame.py`. Usage is as follows:
