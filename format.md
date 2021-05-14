@@ -7,8 +7,8 @@ Copyright Penguin_Spy 2021
 |  Version |     0    |  1 Byte  | Version of this LLV file. For this specification, should be `0b1.001.0000`, 1st bit is set if debug
 | Features |     1    |  1 Byte  | Bitmask - Which features this file uses: 0 - Sound; 1-7 Reserved, should be zeros.
 |    FPS   |     2    |  1 Byte  | Frames per Second to play the video in.
-|    OFF   |     3    |  1 Byte  | Frames per Second to play the video in.
-|    ON    |     4    |  1 Byte  | Frames per Second to play the video in.
+|    OFF   |     3    |  1 Byte  | GraphX default pallete color to use for "off" pixels (https://ce-programming.github.io/toolchain/libraries/graphx.html#default-palette)
+|    ON    |     4    |  1 Byte  | GraphX default pallete color to use for "on" pixels
 |   Title  |     5    |  1 + str | Length-prepended string to display as the name of the video.
 |  Frames  |  depends | #o Frames| List of frames. Frame format is described below.
 

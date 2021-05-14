@@ -1,10 +1,10 @@
 ### BADVIDEO for the TI-84+ CE
 
-Really bad 2-tone video player for a calculator.
+Really bad 2-color video player for a calculator.
 
-The actual video player program can be found in `bin/BADVIDEO.8xp`. Be warned, it is in the testing phase, if it runs out of files or encounters any problems with decompressing/decoding it will freeze/crash your calculator, requiring a reset.  
-When in the main menu, use ↑↓ & Enter to select and play a video.  
-While playing a video, these are the controls:  
+The actual video player program can be found in `bin/BADVIDEO.8xp`. Be warned, it is in the testing phase, if it runs out of files or encounters any problems with decompressing/decoding it will freeze/crash your calculator, requiring a reset.
+When in the main menu, use ↑↓ & Enter to select and play a video.
+While playing a video, these are the controls:
 | Button               | Action
 |---|-
 | 2nd/Enter            | Pause/Play
@@ -15,19 +15,19 @@ While playing a video, these are the controls:
 
 (No rewind because of how the video is stored, it's basically impossible)
 
-The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/video/`. All files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 49`) are required for the video to play in full.  
-You may notice a slight problem however: all of these files won't actually fit on the calculator. I'm still working on that... yeah. If you put everything you can on the calculator (`BADAPPLE` & `00-45`, with 44 & 45 in RAM) and just let it hit the end of the files, it seems to consistently not crash on CEmu, but I don't recommend testing this on a physical calculator.
+The pre-converted [Bad Apple](https://www.nicovideo.jp/watch/sm8628149) video can be found in `bin/badapple/`. All 8xv files in this directory (`BADAPPLE.8xv` & `BADAPP00 to 45`) are required for the video to play. Only the first 6000 frames (of 6558) are generated, because the full video just *barely* doesn't fit.
+Additionally, a pre-converted [Lagtrain](https://www.youtube.com/watch?v=UnIhRpIT7nc) can also be found, in `bin/lagtrain/`. Again, all 8xv files are required, and the full video is not stored (only like half this time because the line art is bad for LLV encoding). There are some issues with playing this video, mainly the speed is inconsistent (even with the frame-skipping & waiting code?????), and occasionally, randomly, it will refuse to update the screen for large portions of the video.
 
 A python script to convert a video file (uses OpenCV, I've tested with .mp4) to a collection of AppVars can be found in `tools/convertFrame.py`. Usage is as follows:
 ```
 convertFrame.py <input video file> <output directory> <AppVar name (1-8 chars)> [# of frames to convert]
-```  
+```
 Also, the makefile has a QoL target that can build a video from an .mp4 file in the `src/video/` directory:
 ```
 make <video FILENAME no extension> [# of frames to encode, or leave blank for all]
 ```
 
-The video is stored in my own file format (Line-Length Video), the specification can be found in `format.md`.  
+The video is stored in my own file format (Line-Length Video), the specification can be found in `format.md`.
 Any changes to the format are assumed to be non-backwards or forwards compatible.
 
 ---
