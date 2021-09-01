@@ -19,7 +19,7 @@
 //#include <C:/CEdev/BADVIDEO/src/decompression_test.c>
 
 #define DEBUG -1   // -1 = no debug, 0 = chunk header, 1 = chunk buffer, 2 = frame header, 3 = frame buffer (& pause on every frame)
-#define ZX7_DELTA 3
+#define ZX7_DELTA 13
 #define ZX7_BUFFER_SIZE 41039 + ZX7_DELTA
 //#define ZX7_DELTA 13
 //#define ZX7_BUFFER_SIZE 21454 + ZX7_DELTA
@@ -205,8 +205,8 @@ int main(void) {
     uint16_t chunkHeadPointer;  // Where in the decompressed buffer we are at
     uint8_t compressionDelta = 2;
 
-    uint16_t FPS;  // calculated fps, is float because math? check the code that uses this below ↓
-    uint16_t msBehind = 0;  // # of miliseconds that we're behind. when this reaches 1000/LLVH_Header.fps, we skip a frame to catch up
+    float FPS;  // calculated fps, is float because math? check the code that uses this below ↓
+    float msBehind = 0;  // # of miliseconds that we're behind. when this reaches 1000.0/LLVH_Header.fps, we skip a frame to catch up
 
     //start up a timer for FPS monitoring, do not move:
     timer_Control = TIMER1_ENABLE | TIMER1_32K | TIMER1_UP;
@@ -366,6 +366,9 @@ select:
 
     //gfx_SetDrawBuffer(); // Enable buffering (because the screen is fully redrawn each frame)
 
+    // reset the timer before entering the main loop
+    timer_1_Counter = 0;
+    
     while (remainingFrames > 0) {
 
         // Read compressed length of chunk
@@ -474,40 +477,20 @@ select:
                 color = gfx_SetColor(color);
             }
 
-            if (!KEYS_SKIP && msBehind < (1000 / LLVH_header.fps)) {   // Skip ahead without spending the time to render
+            //if (!KEYS_SKIP && msBehind <= (1000.0 / LLVH_header.fps)) {  // Calculate if we have the time to render this frame
                 renderFrame((chunkBuffer + chunkHeadPointer), lineCount); // Render the frame (who would've guessed thats what this does?)
-            } else if (msBehind > (1000 / LLVH_header.fps)) {
-                msBehind -= (1000 / LLVH_header.fps);
-            }
+            //} else { //if (msBehind > (1000 / LLVH_header.fps)) { // If not, skip ahead without spending the time to render
+                /*if(msBehind >= (1000.0 / LLVH_header.fps)) {  // don't underflow?
+                }*/
+            //}
 
             do {
                 //FPS counter data collection, time "stops" (being relevant) after this point; insert Jo-Jo reference here
-                FPS = (32768 / timer_1_Counter); // Cycles/Second / Cycles = 1/Second
+                FPS = (32768.0 / timer_1_Counter); // Cycles/Second / Cycles = 1/Second
 
-                // time temporarily stops if we're running too fast
-                if (FPS > LLVH_header.fps) {  // if we're skipping ahead, don't delay, teach your hippo today
-                    if (!KEYS_SKIP) {
-                        delay((1000 / LLVH_header.fps) - (1000 / FPS));
-#if DEBUG == 2
-                        if (repeatFrames > 0) {
-                            gfx_SetColor(COLOR_BACKGROUND);
-                            gfx_FillRectangle(0, 0, 3 * 8, 8);
-                            gfx_SetTextXY(0, 0);
-                            gfx_PrintUInt(repeatFrames, 3);
-                        }
-#endif
-                    }
-                } else {
-                    msBehind += FPS;    // yes this is wack i'm pretty sure my units are messed up but the math works so i'm not complaining
-#if DEBUG == 2
-                    gfx_SetTextFGColor(COLOR_BACKGROUND);
-                    gfx_SetTextXY(0, 0);
-                    gfx_PrintUInt(msBehind, 5);
-                    gfx_SetTextFGColor(COLOR_TEXT);
-#endif
-                }
+                timer_1_Counter = 0;  // time is actually relavent again here
 
-                // menu stuff is done here because we don't want to count the time we're in the menu towards rendering the next frame
+                // menu stuff
                 kb_Scan();
                 if (KEYS_CONFIRM || KEYS_SKIP || pause == 2) {
                     // Pause Bar
@@ -551,9 +534,48 @@ select:
                             while (kb_AnyKey());    // require the key to be unpressed b5 we continue*/
                         }
                     }
+                    
+                    // reset the timer again after menu stuff is done because we don't want to count the time we're in the menu towards rendering the next frame
+                    timer_1_Counter = 0;
                 }
 
-                timer_1_Counter = 0;
+                /*gfx_SetColor(COLOR_BACKGROUND);
+                gfx_FillRectangle(0, 0, 4 * 8, 16);
+                gfx_SetTextXY(0, 0);
+                gfx_PrintInt((int) FPS, 4);*/
+                
+                // time temporarily stops if we're running too fast
+                if (FPS > LLVH_header.fps) {
+                    //if (!KEYS_SKIP) {   // if we're skipping ahead, don't delay, teach your hippo today
+                        float delayTicks = (1000.0 / LLVH_header.fps) - (1000.0 / FPS);
+                        /*gfx_SetTextXY(0, 8);
+                        gfx_PrintInt((int) delayTicks, 4);*/
+                        delay(delayTicks);
+                        msBehind -= delayTicks;
+#if DEBUG == 2
+                        if (repeatFrames > 0) {
+                            //while (!kb_AnyKey());    // require the key to be pressed b5 we continue*/
+                            gfx_SetColor(COLOR_BACKGROUND);
+                            gfx_FillRectangle(0, 0, 3 * 8, 8);
+                            gfx_SetTextXY(0, 0);
+                            gfx_PrintUInt(repeatFrames, 3);
+                        }
+#endif
+                    //}
+                } else if (FPS < LLVH_header.fps) { // else, if we're running too slow, save how far behind we are
+                    msBehind += FPS;    // yes this is wack i'm pretty sure my units are messed up but the math works so i'm not complaining
+
+                    /*gfx_SetColor(0x80);
+                    gfx_FillRectangle(0, 16, 4 * 8, 8);
+                    gfx_SetTextXY(0, 16);
+                    gfx_PrintInt((int) msBehind, 4);*/
+#if DEBUG == 2
+                    gfx_SetTextFGColor(COLOR_BACKGROUND);
+                    gfx_SetTextXY(0, 0);
+                    gfx_PrintUInt(msBehind, 5);
+                    gfx_SetTextFGColor(COLOR_TEXT);
+#endif
+                }
 
                 if (repeatFrames > 0) {
                     repeatFrames--;
