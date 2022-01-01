@@ -106,8 +106,11 @@ def encodeFrame(frame):
 
     # Frame Header & This is how the TI-84 stores 16 bit ints, so thats how we store it.
     # frameBytes = bytes([frameHeader]) + lineCount.to_bytes(2, 'little') + frameBytes
-
-    print("Encoded frame", frameTotal, "with", lineCount, "lines.")
+    
+    if(repeatedFrames > 0):
+      print(f"Encoded frame {frameTotal}.{repeatedFrames}")
+    else:
+      print(f"Encoded frame {frameTotal} with {lineCount} lines.")
 
     return startColor, lineCount.to_bytes(2, 'little') + frameBytes
 
@@ -170,7 +173,7 @@ try:
     framesToEncode = int(sys.argv[4])
 except:
     framesToEncode = 0
-    print(f'[Note]: # of frames to encode was unspecified. Setting to default: "{framesToEncode}"')
+    print(f'[Note]: # of frames to encode was unspecified, encoding whole video!')
 
 # Read the video from specified path
 inputVideo = cv2.VideoCapture(inputPath)
@@ -192,7 +195,7 @@ headerBytes += bytes([0b10010001])   # Version (1.1 DEBUG)
 headerBytes += bytes([0b00000000])   # Features (0 - Sound; 1-7 Reserved, should be zeros.)
 headerBytes += bytes([int(inputVideo.get(cv2.CAP_PROP_FPS))])   # FPS
 headerBytes += bytes([0x00])   # Off color (set manually)
-headerBytes += bytes([0xb5])   # On color (set manually) badapple: 0xff, lagtrain: 0xb5
+headerBytes += bytes([0xff])   # On color (set manually) badapple: 0xff, lagtrain: 0xb5
 titleBytes = bytes(title, "ascii")   # get title
 headerBytes += len(title).to_bytes(1, 'big')  # Title length
 headerBytes += titleBytes            # Title
@@ -202,6 +205,8 @@ repeatedFrames = 0  # How many frames in a row were identical
 fileIndex = 0  # Which file is this
 oldFrameBytes = bytes()
 oldColor = 0  # gross but eh
+
+trueFrameTotal = 0 # not encoded in the file, just cause i'm curious
 
 unCVideoBytes = bytes()  # Uncompressed video bytes
 cVideoBytes = bytes()   # Compressed video bytes
@@ -219,6 +224,8 @@ while(True):
             unCVideoBytes += makeHeader(oldColor, 0, repeatedFrames, 0) + oldFrameBytes
             repeatedFrames = 0
             frameTotal += 1
+        
+        trueFrameTotal += 1
 
         oldFrameBytes = frameBytes
         oldColor = color
@@ -358,4 +365,5 @@ while (len(cVideoBytes) > 0):
 
 print(f"Converted {inputPath} to {outputPath}{varName}.8xp with {fileIndex + 1} files ({finalSize} bytes in total).\n" +
       f"The largest single frame was {maxFrameSize} lines ({maxFrameSize + 3} bytes).\n" +
-      f"The largest uncompressed chunk was {maxUncompressedChunk} bytes, and the largest decompression delta is {maxDelta} bytes.")
+      f"The largest uncompressed chunk was {maxUncompressedChunk} bytes, and the largest decompression delta is {maxDelta} bytes.\n" + 
+      f"A total of {frameTotal} frames were encoded, and {trueFrameTotal} frames will be displayed.")
