@@ -1,11 +1,14 @@
 ## Line Length Video (.LLV) Format Specification
-Version 1.1 DEBUG
+Version 1.1 RELEASE
 Copyright Penguin_Spy 2021
 
 |   Name   |  Offset  |  Length  |  Description
 |----------|----------|----------|--------------
-|  Version |     0    |  1 Byte  | Version of this LLV file. For this specification, should be `0b1.001.0000`, 1st bit is set if debug
-| Features |     1    |  1 Byte  | Bitmask - Which features this file uses: 0 - Sound; 1-7 Reserved, should be zeros.
+|  Version |     0    |  1 Byte  | Version of this LLV file. For this specification, should be `0b0.001.0001`. 1st bit is set if debug
+| Features |     1    |  1 Byte  | Bitmask - Which features this file uses: 
+|          |          |          |  0 - Sound; UNUSED/RESERVED & ignored, should always be 0
+|          |          |          |  1 - Captions; UNUSED/RESERVED & ignored, should always be 0
+|          |          |          |  2-7 Reserved, should be zeros.
 |    FPS   |     2    |  1 Byte  | Frames per Second to play the video in.
 |    OFF   |     3    |  1 Byte  | GraphX default pallete color to use for "off" pixels (https://ce-programming.github.io/toolchain/libraries/graphx.html#default-palette)
 |    ON    |     4    |  1 Byte  | GraphX default pallete color to use for "on" pixels
@@ -24,4 +27,4 @@ Copyright Penguin_Spy 2021
 |  Display |     1    |  1 Byte  | If display length bit set, number of frames to display this frame for. Not present otherwise.
 |   Sound  |  depends |  1 Byte? | If sound bit set, tone/note to play. Not present otherwise. UNUSED/RESERVED, NEVER PRESENT
 | #o lines |  depends |  2 Bytes | Number of lines in this frame.
-|Frame Data|  depends | #o lines | List of distances between each color change. A value of 0xFF (255) does not swap the color, allowing contiguous sections of the same color longer than 255. Line lengths of exactly 255 are encoded as a 255 length line, followed by a 0 length line.
+|Frame Data|  depends | #o lines | List of distances between each color change. A value of 0xFF (255) does not swap the color, allowing contiguous sections of the same color longer than 255.                                Line lengths of exactly 255 should be encoded as a 255 length line, followed by a 0 length line.

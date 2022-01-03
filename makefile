@@ -7,8 +7,8 @@
 
 NAME        ?= BADVIDEO
 COMPRESSED  ?= NO
-ICON        ?= icon.png
-DESCRIPTION ?= "Bad Apple for the TI 84+ CE (but its black and white anyways, so yeah)"
+ICON        ?= src/icon.png
+DESCRIPTION ?= "'Bad' 2-tone video player for the TI-84+ CE"
 
 # ----------------------------
 # Other Options (Advanced)
