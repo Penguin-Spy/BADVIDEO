@@ -208,10 +208,11 @@ int main(void) {
   uint8_t compressionDelta = 2;
 
   // timekeeping
-  int msAhead = 0;      // running total of how many miliseconds we're ahead (may be [usually] negative, indicating we're behind)
+  double msAhead = 0;   // running total of how many miliseconds we're ahead (may be [usually] negative, indicating we're behind)
   double msToRender;    // how long this frame took to render (+ time it took to compute logic & whatnot)
   double targetMs = 0;  // how long we want to spend rendering a frame (in miliseconds).
 
+  //uint32_t timerSave = 0;
 
   //start up a timer for FPS monitoring, do not move:
   timer_Control = TIMER1_ENABLE | TIMER1_32K | TIMER1_UP;
@@ -532,17 +533,19 @@ select:
               while(!kb_AnyKey());
               if(KEYS_INFO) {
                 gfx_SetColor(COLOR_BACKGROUND);
-                gfx_FillRectangle_NoClip(0, 0, 64, 40);
+                gfx_FillRectangle_NoClip(0, 0, 64, 56);
                 gfx_SetTextXY(0, 0);
                 gfx_PrintUInt(frameHeader, 3);
                 gfx_SetTextXY(0, 8);
                 gfx_PrintUInt(repeatFrames, 3);
                 gfx_SetTextXY(0, 16);
-                gfx_PrintUInt((unsigned)(1000 / msToRender), 5);  // FPS
+                gfx_PrintUInt((unsigned)msToRender, 5);  // FPS would be (unsigned)(1000 / msToRender)
                 gfx_SetTextXY(0, 24);
-                gfx_PrintInt(msAhead, 5);
+                gfx_PrintInt((int)msAhead, 5);
                 gfx_SetTextXY(0, 32);
                 gfx_PrintUInt(remainingFrames, 5);
+                gfx_SetTextXY(0, 40);
+                gfx_PrintUInt((int)targetMs, 5);
               }
               if(KEYS_SKIP) { pause = 2; }
               if(KEYS_CONFIRM) { pause = 0; }
@@ -554,7 +557,7 @@ select:
             }
           }
 
-          // reset the timer again after menu stuff is done because we don't want to count the time we're in the menu towards rendering the next frame
+          // reset the timer again after menu stuff is done because we don't want to count the time spent in the menu towards rendering the next frame
           timer_1_Counter = 0;
         }
 
@@ -597,55 +600,30 @@ select:
         msAhead += targetMs - msToRender;
 
         if(msAhead > targetMs) {  // if we're ahead by over a frame, delay to get Back on Track - DJVI
-          delay(msAhead);         // we allow getting ahead by a bit in case the next frame suddenly takes longer
-          msAhead = 0; // msAhead + -msAhead;
+          /*gfx_SetTextXY(0, 48);
+          gfx_SetTextFGColor(COLOR_ERROR);
+          gfx_PrintInt(msAhead, 0);
+          gfx_SetTextFGColor(COLOR_TEXT);*/
+
+          //timerSave = timer_1_Counter;
+          delay((uint16_t)msAhead);         // we allow getting ahead by a bit in case the next frame suddenly takes longer
+          //timer_1_Counter = timerSave;
+
+
+          msAhead = 0;//msAhead - (int)msAhead;
+          timer_1_Counter = 0;    // disregard the time it took to delay, don't count it towards next frame's msToRender
+
+
+          /*if(pause == 1) {
+            while(!kb_AnyKey());
+            while(kb_AnyKey());    // require the key to be unpressed b5 we continue
+          }*/
         }
 
-
-
-#if 0
-        // if this frame
-        if(FPS > LLVH_header.fps) {
-          //if (!KEYS_SKIP) {   // if we're skipping ahead, don't delay, teach your hippo today
-
-          if(msBehind <= (1000 / LLVH_header.fps) {
-            float delayTicks = (1000.0 / LLVH_header.fps) - (1000.0 / FPS);
-              gfx_SetTextXY(0, 8);
-              gfx_PrintInt((int)delayTicks, 4);
-              delay(delayTicks);
-              msBehind -= delayTicks;
-
-#if DEBUG == 2
-              if(repeatFrames > 0) {
-                //while (!kb_AnyKey());    // require the key to be pressed b5 we continue*/
-                gfx_SetColor(COLOR_BACKGROUND);
-                  gfx_FillRectangle(0, 0, 3 * 8, 8);
-                gfx_SetTextXY(0, 0);
-                gfx_PrintUInt(repeatFrames, 3);
-              }
-#endif
-            //}
-          } else if(FPS < LLVH_header.fps) { // else, if we're running too slow, save how far behind we are
-            msBehind += FPS;    // yes this is wack i'm pretty sure my units are messed up but the math works so i'm not complaining
-
-            /*gfx_SetColor(0x80);
-            gfx_FillRectangle(0, 16, 4 * 8, 8);
-            gfx_SetTextXY(0, 16);
-            gfx_PrintInt((int) msBehind, 4);*/
-#if DEBUG == 2
-            gfx_SetTextFGColor(COLOR_BACKGROUND);
-            gfx_SetTextXY(0, 0);
-            gfx_PrintUInt(msBehind, 5);
-            gfx_SetTextFGColor(COLOR_TEXT);
-#endif
-          }
-#endif
-
-
-          if(repeatFrames > 0) {
-            repeatFrames--;
-            delay(1);   // gross but works i guess (makes sure timer 1 isn't 0 when we calc the FPS while repeating frames, so that we delay properly)
-          }
+        if(repeatFrames > 0) {
+          repeatFrames--;
+          delay(1);   // gross but works i guess (makes sure timer 1 isn't 0 when we calc the FPS while repeating frames, so that we delay properly)
+        }
       } while(repeatFrames > 0);
 
 #if DEBUG == 3
@@ -660,6 +638,6 @@ select:
     }
   }
 
-    //gfx_SetDrawScreen();
-    goto select;
+  //gfx_SetDrawScreen();
+  goto select;
 }
