@@ -1,1 +1,0 @@
-void decodeVertical(uint8_t* frameBuffer, uint16_t lineCount);
