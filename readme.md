@@ -2,7 +2,7 @@
 
 Really bad 2-color video player for a calculator.
 
-The video player program can be found in the [GitHub releases](). Be warned, while it is no longer in beta, if it runs out of files or encounters any problems with decompressing/decoding it will freeze/crash your calculator, requiring a reset & RAM clear.  
+The video player program can be found in the [GitHub releases](https://github.com/Penguin-Spy/BADVIDEO/releases/tag/v1.1). Be warned, while it is no longer in beta, if it runs out of files or encounters any problems with decompressing/decoding it will freeze/crash your calculator, requiring a reset & RAM clear.  
 When in the main menu, use ↑↓ & Enter to select and play a video. 
 While playing a video, these are the controls:
 | Button               | Action
